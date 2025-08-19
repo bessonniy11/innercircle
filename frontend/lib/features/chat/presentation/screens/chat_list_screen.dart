@@ -1,27 +1,62 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/features/chat/presentation/screens/message_screen.dart';
 import 'package:frontend/core/api/api_client.dart';
 import 'package:frontend/core/socket/socket_client.dart';
+import 'package:frontend/features/chat/presentation/screens/message_screen.dart';
 
 class ChatListScreen extends StatefulWidget {
   final ApiClient apiClient;
   final SocketClient socketClient;
-  final String currentUserId; // Добавляем currentUserId
+  final String currentUserId;
 
-  const ChatListScreen({super.key, required this.apiClient, required this.socketClient, required this.currentUserId});
+  const ChatListScreen({
+    Key? key,
+    required this.apiClient,
+    required this.socketClient,
+    required this.currentUserId,
+  }) : super(key: key);
 
   @override
-  State<ChatListScreen> createState() => _ChatListScreenState();
+  _ChatListScreenState createState() => _ChatListScreenState();
 }
 
 class _ChatListScreenState extends State<ChatListScreen> {
-  // TODO: Implement fetching chat list logic
+  List<Map<String, dynamic>> _chats = [];
+  bool _isLoading = true;
+  String? _familyChatId;
+  String? _familyChatName;
 
-  final List<Map<String, String>> _dummyChats = [
-    {'id': 'chat1', 'name': 'Семейный Чат'},
-    {'id': 'chat2', 'name': 'Друзья'},
-    {'id': 'chat3', 'name': 'Работа'},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _fetchChats();
+  }
+
+  Future<void> _fetchChats() async {
+    try {
+      final response = await widget.apiClient.get('/chats');
+      final List<dynamic> fetchedChats = response.data;
+      setState(() {
+        _chats = fetchedChats.cast<Map<String, dynamic>>();
+        _familyChatId = _chats.firstWhere(
+            (chat) => chat['name'] == 'Семейный Чат',
+            orElse: () => {})
+            ['id'];
+        _familyChatName = _chats.firstWhere(
+            (chat) => chat['name'] == 'Семейный Чат',
+            orElse: () => {})
+            ['name'];
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Failed to fetch chats: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Не удалось загрузить чаты: $e')),
+      );
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,57 +65,53 @@ class _ChatListScreenState extends State<ChatListScreen> {
         title: const Text('Мои Чаты'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add_comment),
+            icon: const Icon(Icons.add),
             onPressed: () {
-              // TODO: Implement create new chat logic
-              debugPrint('Create new chat');
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              // TODO: Implement logout logic
-              debugPrint('Logout');
+              // TODO: Implement chat creation logic
             },
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              itemCount: _dummyChats.length,
-              itemBuilder: (context, index) {
-                final chat = _dummyChats[index];
-                return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                  child: ListTile(
-                    leading: const CircleAvatar(
-                      child: Icon(Icons.group),
-                    ),
-                    title: Text(chat['name']!),
-                    subtitle: const Text('Последнее сообщение...'), // TODO: Display last message
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => MessageScreen(
-                            chatId: chat['id']!,
-                            chatName: chat['name']!,
-                            apiClient: widget.apiClient, // Pass apiClient
-                            socketClient: widget.socketClient, // Pass socketClient
-                            currentUserId: widget.currentUserId, // Передаем currentUserId
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _chats.isEmpty
+              ? const Center(child: Text('Нет доступных чатов'))
+              : ListView.builder(
+                  itemCount: _chats.length,
+                  itemBuilder: (context, index) {
+                    final chat = _chats[index];
+                    return Card(
+                      margin: const EdgeInsets.all(8.0),
+                      child: ListTile(
+                        title: Text(chat['name'] ?? 'Без имени'),
+                        subtitle: Text(chat['description'] ?? ''),
+                        onTap: () {
+                          if (chat['name'] == 'Семейный Чат' &&
+                              _familyChatId != null &&
+                              _familyChatName != null) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => MessageScreen(
+                                  chatId: _familyChatId!,
+                                  chatName: _familyChatName!,
+                                  apiClient: widget.apiClient,
+                                  socketClient: widget.socketClient,
+                                  currentUserId: widget.currentUserId,
+                                ),
+                              ),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text('Этот чат пока не поддерживается')),
+                            );
+                          }
+                        },
+                      ),
+                    );
+                  },
+                ),
     );
   }
 } 
