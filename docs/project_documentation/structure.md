@@ -90,7 +90,8 @@ innercircle/
 │   ├── 📁 test/                               # Тесты
 │   ├── pubspec.yaml                           # Конфигурация Flutter и зависимости
 │   ├── pubspec.lock                           # Зафиксированные версии зависимостей
-│   └── analysis_options.yaml                  # Правила анализа кода Dart
+│   ├── analysis_options.yaml                  # Правила анализа кода Dart
+│   └── README.md                              # Подробное руководство по Flutter приложению
 ├── 📁 docs/                                   # Документация проекта
 │   ├── 📁 project_documentation/              # Техническая документация
 │   │   ├── structure.md                       # Этот файл - структура проекта

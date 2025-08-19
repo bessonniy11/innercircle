@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -6,6 +6,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcryptjs';
 import { InvitationCodesService } from '../invitation-codes/invitation-codes.service';
+import { ChatService } from '../chat/chat.service';
 
 @Injectable()
 export class UsersService {
@@ -13,8 +14,15 @@ export class UsersService {
     @InjectRepository(User)
     private usersRepository: Repository<User>,
     private invitationCodesService: InvitationCodesService,
+    @Inject(forwardRef(() => ChatService))
+    private chatService: ChatService, // Инжектируем ChatService с forwardRef
   ) {}
 
+  /**
+   * Создает нового пользователя и автоматически добавляет его в семейный чат
+   * @param createUserDto - Данные для создания пользователя (username, password, invitationCode)
+   * @returns Promise<User> - Созданный пользователь
+   */
   async create(createUserDto: CreateUserDto): Promise<User> {
     const { username, password, invitationCode } = createUserDto;
 
@@ -40,21 +48,49 @@ export class UsersService {
     const savedUser = await this.usersRepository.save(user);
     await this.invitationCodesService.markCodeAsUsed(validInvitationCode.code, savedUser.id);
 
+    // Автоматически добавляем пользователя в семейный чат
+    try {
+      await this.chatService.addUserToFamilyChat(savedUser.id);
+    } catch (error) {
+      // Логируем ошибку, но не прерываем регистрацию
+      console.error('Failed to add user to family chat:', error.message);
+    }
+
     return savedUser;
   }
 
+  /**
+   * Получает всех пользователей системы
+   * @returns Promise<User[]> - Список всех пользователей
+   */
   async findAll(): Promise<User[]> {
     return this.usersRepository.find();
   }
 
+  /**
+   * Находит пользователя по ID
+   * @param id - ID пользователя
+   * @returns Promise<User | null> - Найденный пользователь или null
+   */
   async findOne(id: string): Promise<User | null> {
     return this.usersRepository.findOneBy({ id });
   }
 
+  /**
+   * Находит пользователя по имени пользователя
+   * @param username - Имя пользователя
+   * @returns Promise<User | null> - Найденный пользователь или null
+   */
   async findOneByUsername(username: string): Promise<User | null> {
     return this.usersRepository.findOneBy({ username });
   }
 
+  /**
+   * Обновляет данные пользователя
+   * @param id - ID пользователя
+   * @param updateUserDto - Данные для обновления
+   * @returns Promise<User> - Обновленный пользователь
+   */
   async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
     const user = await this.usersRepository.findOneBy({ id });
     if (!user) {
@@ -78,10 +114,20 @@ export class UsersService {
     return this.usersRepository.save(user);
   }
 
+  /**
+   * Находит пользователей по списку ID
+   * @param ids - Массив ID пользователей
+   * @returns Promise<User[]> - Найденные пользователи
+   */
   async findAllByIds(ids: string[]): Promise<User[]> {
     return this.usersRepository.findBy({ id: In(ids) });
   }
 
+  /**
+   * Удаляет пользователя по ID
+   * @param id - ID пользователя для удаления
+   * @returns Promise<void>
+   */
   async remove(id: string): Promise<void> {
     const result = await this.usersRepository.delete(id);
     if (result.affected === 0) {

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Message } from '../entities/message.entity';
@@ -14,7 +14,8 @@ export class MessageService {
     private messageRepository: Repository<Message>,
     @InjectRepository(Chat)
     private chatRepository: Repository<Chat>,
-    private usersService: UsersService, // Инжектируем UsersService
+    @Inject(forwardRef(() => UsersService))
+    private usersService: UsersService, // Инжектируем UsersService с forwardRef
   ) {}
 
   async sendMessage(senderId: string, sendMessageDto: SendMessageDto): Promise<Message> {

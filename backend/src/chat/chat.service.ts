@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Chat } from './entities/chat.entity';
@@ -12,9 +12,16 @@ export class ChatService {
   constructor(
     @InjectRepository(Chat)
     private chatRepository: Repository<Chat>,
-    private usersService: UsersService, // Инжектируем UsersService
+    @Inject(forwardRef(() => UsersService))
+    private usersService: UsersService, // Инжектируем UsersService с forwardRef
   ) {}
 
+  /**
+   * Создает новый чат с участниками
+   * @param createChatDto - Данные для создания чата (название и список участников)
+   * @param creatorId - ID создателя чата
+   * @returns Promise<Chat> - Созданный чат с участниками
+   */
   async createChat(createChatDto: CreateChatDto, creatorId: string): Promise<Chat> {
     const { name, participantIds } = createChatDto;
 
@@ -41,6 +48,62 @@ export class ChatService {
     });
 
     return this.chatRepository.save(chat);
+  }
+
+  /**
+   * Находит или создает общий семейный чат для всех пользователей
+   * @returns Promise<Chat> - Общий семейный чат
+   */
+  async findOrCreateFamilyChat(): Promise<Chat> {
+    // Ищем существующий семейный чат по названию
+    let familyChat = await this.chatRepository.findOne({
+      where: { name: 'Семейный Чат' },
+      relations: ['participants']
+    });
+
+    // Если семейный чат не существует, создаем его
+    if (!familyChat) {
+      // Получаем всех существующих пользователей
+      const allUsers = await this.usersService.findAll();
+      
+      if (allUsers.length === 0) {
+        throw new BadRequestException('No users found to create family chat');
+      }
+
+      // Создаем семейный чат со всеми пользователями
+      familyChat = this.chatRepository.create({
+        name: 'Семейный Чат',
+        participants: allUsers,
+      });
+
+      familyChat = await this.chatRepository.save(familyChat);
+    }
+
+    return familyChat;
+  }
+
+  /**
+   * Добавляет пользователя в общий семейный чат
+   * @param userId - ID пользователя для добавления
+   * @returns Promise<Chat> - Обновленный семейный чат
+   */
+  async addUserToFamilyChat(userId: string): Promise<Chat> {
+    const familyChat = await this.findOrCreateFamilyChat();
+    const user = await this.usersService.findOne(userId);
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Проверяем, что пользователь еще не участник
+    const isAlreadyParticipant = familyChat.participants.some(p => p.id === userId);
+    
+    if (!isAlreadyParticipant) {
+      familyChat.participants.push(user);
+      return this.chatRepository.save(familyChat);
+    }
+
+    return familyChat;
   }
 
   async findChatById(id: string): Promise<Chat | null> {
