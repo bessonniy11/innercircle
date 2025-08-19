@@ -1,0 +1,4 @@
+{
+    "typescript.workspaceSymbols.scope": "currentProject",
+    "typescript.updateImportsOnPaste.enabled": true
+}

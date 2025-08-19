@@ -8,8 +8,16 @@ class MessageScreen extends StatefulWidget {
   final String chatName;
   final ApiClient apiClient;
   final SocketClient socketClient;
+  final String currentUserId;
 
-  const MessageScreen({super.key, required this.chatId, required this.chatName, required this.apiClient, required this.socketClient});
+  const MessageScreen({
+    super.key,
+    required this.chatId,
+    required this.chatName,
+    required this.apiClient,
+    required this.socketClient,
+    required this.currentUserId,
+  });
 
   @override
   State<MessageScreen> createState() => _MessageScreenState();
@@ -18,6 +26,8 @@ class MessageScreen extends StatefulWidget {
 class _MessageScreenState extends State<MessageScreen> {
   final TextEditingController _messageController = TextEditingController();
   final List<Message> _messages = [];
+  final ScrollController _scrollController = ScrollController();
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -29,36 +39,48 @@ class _MessageScreenState extends State<MessageScreen> {
   @override
   void dispose() {
     _messageController.dispose();
-    widget.socketClient.socket.off('messageReceived'); // Remove listener
+    _scrollController.dispose();
+    widget.socketClient.socket.off('messageReceived');
     // TODO: Dispose socketClient and apiClient if they are not singleton or managed globally
     super.dispose();
   }
 
   Future<void> _fetchMessages() async {
+    setState(() {
+      _isLoading = true;
+    });
     try {
       final response = await widget.apiClient.dio.get(
         '/messages/${widget.chatId}',
       );
-      final List<dynamic> messageData = response.data['data']; // Assuming 'data' field in response
+      final List<dynamic> messageData = response.data;
       setState(() {
         _messages.addAll(messageData.map((json) => Message.fromJson(json)).toList());
+        _scrollToBottom();
       });
     } catch (e) {
       debugPrint('Failed to fetch messages: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load messages: ${e.toString()}')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Не удалось загрузить сообщения: ${e.toString()}')),
+        );
+      }
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
   void _setupSocketListeners() {
     widget.socketClient.socket.on('messageReceived', (data) {
       debugPrint('Message received: $data');
-      final receivedMessage = Message.fromJson(data['data']); // Assuming 'data' field in response
+      final receivedMessage = Message.fromJson(data);
       if (receivedMessage.chatId == widget.chatId) {
         setState(() {
           _messages.add(receivedMessage);
         });
+        _scrollToBottom();
       }
     });
   }
@@ -83,12 +105,15 @@ class _MessageScreenState extends State<MessageScreen> {
       body: Column(
         children: <Widget>[
           Expanded(
-            child: ListView.builder(
-              reverse: true, // Show latest messages at the bottom
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.builder(
+                    reverse: true,
+                    controller: _scrollController,
+                    itemCount: _messages.length,
+                    itemBuilder: (context, index) {
                 final message = _messages[_messages.length - 1 - index]; // Display in reverse order
-                final isMe = message.senderId == 'CURRENT_USER_ID'; // TODO: Replace with actual current user ID
+                final isMe = message.senderId == widget.currentUserId; // Corrected: Use actual current user ID
                 return Align(
                   alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
@@ -141,5 +166,17 @@ class _MessageScreenState extends State<MessageScreen> {
         ],
       ),
     );
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0.0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 } 

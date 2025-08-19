@@ -35,12 +35,21 @@ class _LoginScreenState extends State<LoginScreen> {
       _apiClient.setAuthToken(accessToken);
       _socketClient.setToken(accessToken);
       _socketClient.connect();
+      
+      // Decode JWT to get user ID
+      final Map<String, dynamic> decodedToken = _apiClient.decodeJwtToken(accessToken);
+      final String currentUserId = decodedToken['sub']; // 'sub' is typically the user ID
+
       debugPrint('Login successful! Token: $accessToken');
       // Navigate to chat list screen after successful login
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => ChatListScreen(apiClient: _apiClient, socketClient: _socketClient),
+          builder: (context) => ChatListScreen(
+            apiClient: _apiClient,
+            socketClient: _socketClient,
+            currentUserId: currentUserId, // Pass the extracted user ID
+          ),
         ),
       );
     } catch (e) {

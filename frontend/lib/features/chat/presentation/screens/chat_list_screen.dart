@@ -6,8 +6,9 @@ import 'package:frontend/core/socket/socket_client.dart';
 class ChatListScreen extends StatefulWidget {
   final ApiClient apiClient;
   final SocketClient socketClient;
+  final String currentUserId; // Добавляем currentUserId
 
-  const ChatListScreen({super.key, required this.apiClient, required this.socketClient});
+  const ChatListScreen({super.key, required this.apiClient, required this.socketClient, required this.currentUserId});
 
   @override
   State<ChatListScreen> createState() => _ChatListScreenState();
@@ -68,6 +69,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                             chatName: chat['name']!,
                             apiClient: widget.apiClient, // Pass apiClient
                             socketClient: widget.socketClient, // Pass socketClient
+                            currentUserId: widget.currentUserId, // Передаем currentUserId
                           ),
                         ),
                       );
