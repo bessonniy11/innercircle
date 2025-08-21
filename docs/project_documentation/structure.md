@@ -102,7 +102,8 @@ innercircle/
 │   ├── technology_stack.md                    # Технологический стек и обоснования
 │   ├── testing_guide.md                       # Руководство по тестированию
 │   ├── user_experience_design.md              # UX/UI дизайн и пользовательские сценарии
-│   ├── security_and_privacy.md                # Безопасность и конфиденциальность (НОВОЕ)
+│   ├── security_and_privacy.md                # Безопасность и конфиденциальность
+│   ├── api_documentation.md                   # API документация REST и WebSocket (НОВОЕ)
 │   └── 📁 assets/                             # Ресурсы документации
 │       ├── 📁 images/                         # Диаграммы и схемы
 │       └── 📁 screenshots/                    # Скриншоты приложения
