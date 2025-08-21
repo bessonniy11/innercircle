@@ -42,13 +42,13 @@ export class MessageController {
     @Query('offset') offset: number = 0,
     @Req() req: Request,
   ): Promise<Message[]> { // Изменено с Promise<void> на Promise<Message[]>
-    console.log(`MessageController: Received request for chatId: ${chatId}`); // Debug log
+
     // В реальном приложении здесь должна быть проверка, является ли текущий пользователь участником чата
     // Для MVP, мы полагаемся на логику внутри MessageService, которая проверяет существование чата.
     // Однако, для полной безопасности, эту проверку лучше дублировать и здесь.
     try {
       const messages = await this.messageService.getMessagesForChat(chatId, limit, offset);
-      console.log(`MessageController: Returning messages for chat ${chatId}:`, messages);
+
       return messages; // NestJS сам сериализует в JSON
     } catch (error) {
       if (error.status === HttpStatus.NOT_FOUND) {

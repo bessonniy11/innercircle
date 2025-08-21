@@ -34,13 +34,13 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         'password': password,
         'invitationCode': invitationCode,
       });
-      debugPrint('Registration successful! User: ${response.data}');
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Registration successful! Please login.')),
       );
       Navigator.pop(context); // Go back to login screen
     } catch (e) {
-      debugPrint('Registration failed: $e');
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Registration failed: ${e.toString()}')),
       );

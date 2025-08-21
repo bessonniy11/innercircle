@@ -21,9 +21,9 @@ class SocketClient {
           .build(),
     );
 
-    _socket.onConnect((_) => debugPrint('Connected to Socket.IO'));
-    _socket.onDisconnect((_) => debugPrint('Disconnected from Socket.IO'));
-    _socket.onError((error) => debugPrint('Socket.IO Error: $error'));
+    _socket.onConnect((_) => {});
+    _socket.onDisconnect((_) => {});
+    _socket.onError((error) => {});
   }
 
   void setToken(String token) {
@@ -34,7 +34,7 @@ class SocketClient {
 
   void connect() {
     if (_token == null) {
-      debugPrint('Error: Token is not set. Cannot connect to Socket.IO.');
+      // Token is not set. Cannot connect to Socket.IO.
       return;
     }
     if (!_socket.connected) {

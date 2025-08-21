@@ -41,7 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final String currentUserId = decodedToken['sub']; // 'sub' is typically the user ID
       final String currentUsername = decodedToken['username']; // 'username' is typically the username
 
-      debugPrint('Login successful! Token: $accessToken');
+
       // Navigate to chat list screen after successful login
       Navigator.pushReplacement(
         context,
@@ -55,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
     } catch (e) {
-      debugPrint('Login failed: $e');
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Login failed. Please check your credentials.')),
       );

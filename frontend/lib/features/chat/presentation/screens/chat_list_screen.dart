@@ -49,7 +49,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      debugPrint('Failed to fetch chats: $e');
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Не удалось загрузить чаты: ${e.toString()}')),
       );

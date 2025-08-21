@@ -11,7 +11,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     private usersService: UsersService,
   ) {
     const secret = configService.get<string>('JWT_SECRET');
-    console.log(`JwtStrategy: Using JWT_SECRET from ConfigService: ${secret}`); // Debug log
+
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false, // Токен должен быть действителен
@@ -20,7 +20,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(payload: any) {
-    console.log(`JwtStrategy: Validating payload: ${JSON.stringify(payload)}`); // Debug log
+
     const user = await this.usersService.findOne(payload.sub);
     if (!user) {
       throw new UnauthorizedException();
