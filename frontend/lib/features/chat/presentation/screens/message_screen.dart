@@ -9,18 +9,20 @@ class MessageScreen extends StatefulWidget {
   final ApiClient apiClient;
   final SocketClient socketClient;
   final String currentUserId;
+  final String currentUsername;
 
   const MessageScreen({
-    Key? key,
+    super.key,
     required this.chatId,
     required this.chatName,
     required this.apiClient,
     required this.socketClient,
     required this.currentUserId,
-  }) : super(key: key);
+    required this.currentUsername,
+  });
 
   @override
-  _MessageScreenState createState() => _MessageScreenState();
+  State<MessageScreen> createState() => _MessageScreenState();
 }
 
 class _MessageScreenState extends State<MessageScreen> {
@@ -60,18 +62,20 @@ class _MessageScreenState extends State<MessageScreen> {
       setState(() {
         _isLoading = true;
       });
-      final response = await widget.apiClient.get('/messages/${widget.chatId}');
-      final List<dynamic> fetchedMessages = response.data;
+      final response = await widget.apiClient.dio.get(
+        '/messages/${widget.chatId}',
+      );
+      final List<dynamic> messageData = response.data; // Ожидаем массив сообщений напрямую
       setState(() {
         _messages.clear();
-        _messages.addAll(fetchedMessages.map((msg) => Message.fromJson(msg)));
+        _messages.addAll(messageData.map((json) => Message.fromJson(json)).toList());
         _isLoading = false;
       });
       _scrollToBottom();
     } catch (e) {
-      print('Failed to fetch messages: $e');
+      debugPrint('Failed to fetch messages: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Не удалось загрузить сообщения: $e')),
+        SnackBar(content: Text('Failed to load messages: ${e.toString()}')),
       );
       setState(() {
         _isLoading = false;
@@ -81,11 +85,27 @@ class _MessageScreenState extends State<MessageScreen> {
 
   void _setupSocketListeners() {
     widget.socketClient.socket.on('messageReceived', (data) {
-      print('Message received via socket: $data');
-      // Ensure the message is for the current chat before adding
-      if (data != null && data['chatId'] == widget.chatId) {
+      debugPrint('Message received via socket: $data');
+      // Parse message directly from data, as backend sends full message object
+      final receivedMessage = Message.fromJson(data);
+
+      // Check if the widget is still mounted before calling setState
+      if (!mounted) {
+        debugPrint('MessageScreenState is not mounted. Skipping setState.');
+        return;
+      }
+
+      // Prevent duplicating sender's own messages that were optimistically added
+      if (receivedMessage.senderId == widget.currentUserId) {
+        // Optional: You could update the temporary ID with the real ID here if needed.
+        // For simplicity, we just won't add a duplicate.
+        debugPrint('Skipping own message echo from server.');
+        return;
+      }
+
+      if (receivedMessage.chatId == widget.chatId) {
         setState(() {
-          _messages.add(Message.fromJson(data));
+          _messages.add(receivedMessage);
         });
         _scrollToBottom();
       }
@@ -93,16 +113,28 @@ class _MessageScreenState extends State<MessageScreen> {
   }
 
   void _sendMessage() {
-    final text = _messageController.text.trim();
-    if (text.isNotEmpty) {
-      final messageData = {
-        'chatId': widget.chatId,
-        'content': text,
-        'senderId': widget.currentUserId, // Use the actual current user ID
-      };
-      widget.socketClient.socket.emit('sendMessage', messageData);
-      _messageController.clear();
+    final String messageContent = _messageController.text.trim();
+    if (messageContent.isNotEmpty) {
+      // Optimistic update: add message to the list immediately
+      final optimisticMessage = Message(
+        id: DateTime.now().toIso8601String(), // Temporary ID
+        content: messageContent,
+        senderId: widget.currentUserId,
+        senderUsername: widget.currentUsername,
+        chatId: widget.chatId,
+        createdAt: DateTime.now(),
+      );
+      setState(() {
+        _messages.add(optimisticMessage);
+      });
       _scrollToBottom();
+
+      // Emit message to the backend
+      widget.socketClient.socket.emit('sendMessage', {
+        'chatId': widget.chatId,
+        'content': messageContent,
+      });
+      _messageController.clear();
     }
   }
 
@@ -137,7 +169,7 @@ class _MessageScreenState extends State<MessageScreen> {
                             crossAxisAlignment: isCurrentUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                             children: [
                               Text(
-                                message.senderId.substring(0, 8), // Display first 8 chars of sender ID for now
+                                message.senderUsername, // Display full username
                                 style: const TextStyle(fontSize: 12.0, color: Colors.black54),
                               ),
                               Text(

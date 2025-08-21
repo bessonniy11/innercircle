@@ -16,7 +16,8 @@ class SocketClient {
           .setTransports(['websocket'])
           .enableForceNew()
           .disableAutoConnect()
-          .setExtraHeaders(_token != null ? {'Authorization': 'Bearer $_token'} : {}) // Pass empty map if token is null
+          .setExtraHeaders({})
+          .setAuth({'token': _token}) // Передаем токен через опцию auth
           .build(),
     );
 

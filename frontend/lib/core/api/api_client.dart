@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
 import 'dart:convert'; // Add this import
 
 class ApiClient {
@@ -38,29 +39,6 @@ class ApiClient {
 
   // Helper to decode JWT token and extract payload
   Map<String, dynamic> decodeJwtToken(String token) {
-    final parts = token.split('.');
-    if (parts.length != 3) {
-      throw Exception('Invalid JWT token format');
-    }
-    final payload = _decodeBase64(parts[1]);
-    final Map<String, dynamic> jsonPayload = json.decode(payload);
-    return jsonPayload;
-  }
-
-  String _decodeBase64(String str) {
-    String output = str.replaceAll('-', '+').replaceAll('_', '/');
-    switch (output.length % 4) {
-      case 0:
-        break;
-      case 2:
-        output += '==';
-        break;
-      case 3:
-        output += '=';
-        break;
-      default:
-        throw Exception('Illegal base64url string!');
-    }
-    return utf8.decode(base64Url.decode(output));
+    return JwtDecoder.decode(token);
   }
 } 

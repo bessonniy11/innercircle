@@ -2,25 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:frontend/core/api/api_client.dart';
 import 'package:frontend/core/socket/socket_client.dart';
 import 'package:frontend/features/chat/presentation/screens/message_screen.dart';
+import 'package:collection/collection.dart'; // Import for firstWhereOrNull
 
 class ChatListScreen extends StatefulWidget {
   final ApiClient apiClient;
   final SocketClient socketClient;
   final String currentUserId;
+  final String currentUsername;
 
   const ChatListScreen({
-    Key? key,
+    super.key,
     required this.apiClient,
     required this.socketClient,
     required this.currentUserId,
-  }) : super(key: key);
+    required this.currentUsername,
+  });
 
   @override
-  _ChatListScreenState createState() => _ChatListScreenState();
+  State<ChatListScreen> createState() => _ChatListScreenState();
 }
 
 class _ChatListScreenState extends State<ChatListScreen> {
-  List<Map<String, dynamic>> _chats = [];
+  List<Map<String, dynamic>> _chats = []; // Переменная для хранения загруженных чатов
   bool _isLoading = true;
   String? _familyChatId;
   String? _familyChatName;
@@ -33,24 +36,22 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   Future<void> _fetchChats() async {
     try {
-      final response = await widget.apiClient.get('/chats');
+      final response = await widget.apiClient.dio.get('/chats');
       final List<dynamic> fetchedChats = response.data;
       setState(() {
-        _chats = fetchedChats.cast<Map<String, dynamic>>();
-        _familyChatId = _chats.firstWhere(
-            (chat) => chat['name'] == 'Семейный Чат',
-            orElse: () => {})
-            ['id'];
-        _familyChatName = _chats.firstWhere(
-            (chat) => chat['name'] == 'Семейный Чат',
-            orElse: () => {})
-            ['name'];
+        _chats = fetchedChats.map((e) => e as Map<String, dynamic>).toList(); // Преобразуем к List<Map<String, dynamic>>
+        final familyChat = _chats.firstWhereOrNull(
+            (chat) => chat['name'] == 'Семейный Чат');
+        if (familyChat != null) {
+          _familyChatId = familyChat['id'];
+          _familyChatName = familyChat['name'];
+        }
         _isLoading = false;
       });
     } catch (e) {
-      print('Failed to fetch chats: $e');
+      debugPrint('Failed to fetch chats: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Не удалось загрузить чаты: $e')),
+        SnackBar(content: Text('Не удалось загрузить чаты: ${e.toString()}')),
       );
       setState(() {
         _isLoading = false;
@@ -98,6 +99,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                   apiClient: widget.apiClient,
                                   socketClient: widget.socketClient,
                                   currentUserId: widget.currentUserId,
+                                  currentUsername: widget.currentUsername, // Передача currentUsername
                                 ),
                               ),
                             );

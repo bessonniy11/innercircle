@@ -1,7 +1,8 @@
-import { Controller, Get, Param, Query, UseGuards, Req, Res, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, Req, Res, HttpStatus, NotFoundException, InternalServerErrorException } from '@nestjs/common';
 import { MessageService } from './message.service';
 import { AuthGuard } from '@nestjs/passport';
 import type { Request, Response } from 'express';
+import { Message } from '../entities/message.entity'; // Исправлен путь импорта
 
 /**
  * Контроллер для работы с сообщениями по HTTP.
@@ -40,20 +41,20 @@ export class MessageController {
     @Query('limit') limit: number = 50,
     @Query('offset') offset: number = 0,
     @Req() req: Request,
-    @Res() res: Response
-  ): Promise<void> {
+  ): Promise<Message[]> { // Изменено с Promise<void> на Promise<Message[]>
     console.log(`MessageController: Received request for chatId: ${chatId}`); // Debug log
     // В реальном приложении здесь должна быть проверка, является ли текущий пользователь участником чата
     // Для MVP, мы полагаемся на логику внутри MessageService, которая проверяет существование чата.
     // Однако, для полной безопасности, эту проверку лучше дублировать и здесь.
     try {
       const messages = await this.messageService.getMessagesForChat(chatId, limit, offset);
-      res.status(HttpStatus.OK).json(messages);
+      console.log(`MessageController: Returning messages for chat ${chatId}:`, messages);
+      return messages; // NestJS сам сериализует в JSON
     } catch (error) {
       if (error.status === HttpStatus.NOT_FOUND) {
-        res.status(HttpStatus.NOT_FOUND).json({ message: error.message });
+        throw new NotFoundException(error.message); // Используем стандартные исключения NestJS
       } else {
-        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal server error', error: error.message });
+        throw new InternalServerErrorException('Internal server error', error.message); // Используем стандартные исключения NestJS
       }
     }
   }

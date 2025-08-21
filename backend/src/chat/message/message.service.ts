@@ -42,21 +42,41 @@ export class MessageService {
       content,
     });
 
-    return this.messageRepository.save(message);
+    console.log('MessageService: Attempting to save new message...', message);
+    const savedMessage = await this.messageRepository.save(message);
+    console.log('MessageService: Message saved. ID:', savedMessage.id);
+    // Загружаем связанные сущности sender и chat после сохранения, чтобы фронтенд получил полные данные
+    const fullMessage = (await this.messageRepository.findOne({
+      where: { id: savedMessage.id },
+      relations: ['sender', 'chat'],
+    }))!;
+    console.log('MessageService: Full message object after saving:', fullMessage);
+    return fullMessage;
   }
 
+  /**
+   * Получает историю сообщений для указанного чата.
+   * @param chatId - ID чата, для которого нужно получить сообщения.
+   * @param limit - Максимальное количество сообщений для получения (по умолчанию 50).
+   * @param offset - Смещение для пагинации (по умолчанию 0).
+   * @returns Promise<Message[]> - Массив сообщений.
+   * @throws {NotFoundException} Если чат не найден.
+   */
   async getMessagesForChat(chatId: string, limit: number = 50, offset: number = 0): Promise<Message[]> {
+    console.log(`MessageService: Fetching messages for chat: ${chatId} with limit: ${limit}, offset: ${offset}`);
     const chat = await this.chatRepository.findOneBy({ id: chatId });
     if (!chat) {
       throw new NotFoundException('Chat not found');
     }
 
-    return this.messageRepository.find({
+    const messages = await this.messageRepository.find({
       where: { chat: { id: chatId } },
-      relations: ['sender'],
+      relations: ['sender', 'chat'], // Загружаем sender и chat
       order: { createdAt: 'ASC' },
       take: limit,
       skip: offset,
     });
+    console.log(`MessageService: Found ${messages.length} messages for chat ${chatId}.`);
+    return messages;
   }
 }

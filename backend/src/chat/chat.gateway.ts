@@ -22,20 +22,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {}
 
   async handleConnection(client: Socket) {
-    const authToken = client.handshake.headers.authorization;
-
+    const authToken = client.handshake.auth.token as string; // Получаем токен из auth опции
+    console.log(`ChatGateway: handleConnection received authToken: ${authToken ? 'present' : 'absent'}`);
     if (!authToken) {
       client.disconnect(true);
+      console.log('ChatGateway: Disconnected - authToken not provided.');
       return;
     }
 
     try {
-      const token = authToken.split(' ')[1];
+      const token = authToken; // Токен приходит напрямую, без префикса 'Bearer '
+      console.log(`ChatGateway: Attempting to verify token: ${token}`);
       const decoded = this.authService.verifyJwt(token);
+      console.log(`ChatGateway: Decoded token payload:`, decoded);
+      console.log(`ChatGateway: Decoded user ID (sub): ${decoded.sub}`);
       const user = await this.usersService.findOne(decoded.sub);
 
+      console.log(`ChatGateway: User found by ID: ${user ? user.username : 'null'}`);
       if (!user) {
         client.disconnect(true);
+        console.log(`ChatGateway: Disconnected - User not found for ID: ${decoded.sub}`);
         return;
       }
       // Attach user to the socket for later use
@@ -46,6 +52,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       console.log(`User ${user.username} connected to WebSocket.`);
     } catch (error) {
       console.error('WebSocket authentication error:', error.message);
+      console.log(`ChatGateway: Disconnected - Error in authentication process: ${error.message}`);
       client.disconnect(true);
     }
   }
@@ -89,6 +96,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const chat = await this.chatService.findChatById(message.chat.id);
       if (chat) {
         chat.participants.forEach(participant => {
+          console.log(`ChatGateway: Emitting messageReceived to user ${participant.id} for chat ${chat.id}:`, message);
           this.server.to(participant.id).emit('messageReceived', message);
         });
       }

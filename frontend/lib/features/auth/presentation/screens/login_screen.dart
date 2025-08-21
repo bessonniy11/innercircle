@@ -39,6 +39,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // Decode JWT to get user ID
       final Map<String, dynamic> decodedToken = _apiClient.decodeJwtToken(accessToken);
       final String currentUserId = decodedToken['sub']; // 'sub' is typically the user ID
+      final String currentUsername = decodedToken['username']; // 'username' is typically the username
 
       debugPrint('Login successful! Token: $accessToken');
       // Navigate to chat list screen after successful login
@@ -49,6 +50,7 @@ class _LoginScreenState extends State<LoginScreen> {
             apiClient: _apiClient,
             socketClient: _socketClient,
             currentUserId: currentUserId, // Pass the extracted user ID
+            currentUsername: currentUsername, // Pass the extracted username
           ),
         ),
       );
