@@ -3,17 +3,15 @@ import 'package:frontend/core/api/api_client.dart';
 import 'package:frontend/core/socket/socket_client.dart';
 import 'package:frontend/features/chat/presentation/screens/message_screen.dart';
 import 'package:collection/collection.dart'; // Import for firstWhereOrNull
+import 'package:frontend/features/chat/presentation/screens/user_list_screen.dart'; // Импорт UserListScreen
+import 'package:provider/provider.dart'; // Corrected import for Provider
 
 class ChatListScreen extends StatefulWidget {
-  final ApiClient apiClient;
-  final SocketClient socketClient;
   final String currentUserId;
   final String currentUsername;
 
   const ChatListScreen({
     super.key,
-    required this.apiClient,
-    required this.socketClient,
     required this.currentUserId,
     required this.currentUsername,
   });
@@ -36,7 +34,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   Future<void> _fetchChats() async {
     try {
-      final response = await widget.apiClient.dio.get('/chats');
+      final apiClient = Provider.of<ApiClient>(context, listen: false);
+      final response = await apiClient.dio.get('/chats');
       final List<dynamic> fetchedChats = response.data;
       setState(() {
         _chats = fetchedChats.map((e) => e as Map<String, dynamic>).toList(); // Преобразуем к List<Map<String, dynamic>>
@@ -96,8 +95,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                 builder: (context) => MessageScreen(
                                   chatId: _familyChatId!,
                                   chatName: _familyChatName!,
-                                  apiClient: widget.apiClient,
-                                  socketClient: widget.socketClient,
+                                  apiClient: Provider.of<ApiClient>(context, listen: false),
+                                  socketClient: Provider.of<SocketClient>(context, listen: false),
                                   currentUserId: widget.currentUserId,
                                   currentUsername: widget.currentUsername, // Передача currentUsername
                                 ),
@@ -114,6 +113,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     );
                   },
                 ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => UserListScreen(currentUserId: widget.currentUserId, currentUsername: widget.currentUsername)));
+        },
+        child: const Icon(Icons.person_add),
+      ),
     );
   }
 } 

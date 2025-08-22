@@ -22,6 +22,7 @@ innercircle/
 │   │   │   ├── 📁 dto/                         # Data Transfer Objects
 │   │   │   │   ├── create-user.dto.ts          # DTO для создания пользователя
 │   │   │   │   └── update-user.dto.ts          # DTO для обновления пользователя
+│   │   │   │   └── user-public.dto.ts          # DTO для публичного представления пользователя (НОВОЕ)
 │   │   │   └── 📁 entities/                    # Сущности TypeORM
 │   │   │       ├── user.entity.ts              # Сущность пользователя
 │   │   │       └── invitation-code.entity.ts   # Сущность пригласительного кода
@@ -33,6 +34,7 @@ innercircle/
 │   │   │   ├── 📁 dto/                         # Data Transfer Objects
 │   │   │   │   ├── create-chat.dto.ts          # DTO для создания чата
 │   │   │   │   └── send-message.dto.ts         # DTO для отправки сообщения
+│   │   │   │   └── create-private-chat.dto.ts  # DTO для создания личного чата (НОВОЕ)
 │   │   │   ├── 📁 entities/                    # Сущности TypeORM
 │   │   │   │   ├── chat.entity.ts              # Сущность чата
 │   │   │   │   └── message.entity.ts           # Сущность сообщения
@@ -72,6 +74,10 @@ innercircle/
 │   │   │   │       └── 📁 screens/            # Экраны
 │   │   │   │           ├── login_screen.dart  # Экран входа
 │   │   │   │           └── registration_screen.dart # Экран регистрации
+│   │   │   │           └── 📁 domain/                 # Доменный слой
+│   │   │   │               └── 📁 models/             # Модели данных
+│   │   │   │                   └── user_model.dart      # Модель пользователя (для аутентификации)
+│   │   │   │                   └── user_public_model.dart # Публичная модель пользователя (НОВОЕ)
 │   │   │   └── 📁 chat/                       # Модуль чатов
 │   │   │       ├── 📁 domain/                 # Доменный слой
 │   │   │       │   └── 📁 models/             # Модели данных
@@ -80,6 +86,7 @@ innercircle/
 │   │   │           └── 📁 screens/            # Экраны
 │   │   │               ├── chat_list_screen.dart # Экран списка чатов
 │   │   │               └── message_screen.dart   # Экран сообщений
+│   │   │               └── user_list_screen.dart   # Экран списка пользователей (НОВОЕ)
 │   │   └── main.dart                          # Точка входа Flutter приложения
 │   ├── 📁 android/                            # Android специфичный код
 │   ├── 📁 ios/                                # iOS специфичный код
@@ -150,6 +157,7 @@ CREATE TABLE invitation_codes (
 CREATE TABLE chats (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR NOT NULL,
+    "isPrivate" BOOLEAN DEFAULT FALSE, -- Добавлено для различения личных и групповых чатов
     "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -308,9 +316,9 @@ dependencies:
 
 ---
 
-**Последнее обновление:** 20.08.2025  
-**Статус:** Авторизация работает ✅ | Семейный чат ПОЛНОСТЬЮ РАБОТАЕТ ✅ | Real-time сообщения ✅  
-**Версия структуры:** 3.0
+**Последнее обновление:** 22.08.2025  
+**Статус:** Авторизация работает ✅ | Семейный чат ПОЛНОСТЬЮ РАБОТАЕТ ✅ | Real-time сообщения ✅ | Личные Чаты ✅
+**Версия структуры:** 3.1
 
 ## 🔑 **MVP Логика Пригласительных Кодов**
 

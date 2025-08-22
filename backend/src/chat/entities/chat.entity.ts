@@ -10,6 +10,9 @@ export class Chat {
   @Column()
   name: string; // For group chats, or a concatenated name for direct chats
 
+  @Column({ default: false })
+  isPrivate: boolean;
+
   @ManyToMany(() => User, user => user.chats)
   @JoinTable()
   participants: User[];

@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, Not } from 'typeorm';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -65,6 +65,26 @@ export class UsersService {
    */
   async findAll(): Promise<User[]> {
     return this.usersRepository.find();
+  }
+
+  /**
+   * Получает всех пользователей системы, исключая текущего пользователя.
+   * @param currentUserId - ID текущего аутентифицированного пользователя, которого нужно исключить из списка.
+   * @returns Promise<User[]> - Список всех пользователей, кроме текущего.
+   * @example
+   * ```typescript
+   * const users = await this.usersService.findAllUsersExcludingCurrentUser('some-uuid-123');
+   * // Возвращает всех пользователей, кроме пользователя с ID 'some-uuid-123'
+   * ```
+   * @since 1.0.0
+   * @author ИИ-Ассистент + Bessonniy
+   */
+  async findAllUsersExcludingCurrentUser(currentUserId: string): Promise<User[]> {
+    return this.usersRepository.find({
+      where: {
+        id: Not(currentUserId),
+      },
+    });
   }
 
   /**

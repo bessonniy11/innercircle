@@ -45,6 +45,7 @@ export class ChatService {
     const chat = this.chatRepository.create({
       name,
       participants,
+      isPrivate: false, // Default to false for general chat creation
     });
 
     return this.chatRepository.save(chat);
@@ -58,7 +59,7 @@ export class ChatService {
     // Ищем существующий семейный чат по названию
     let familyChat = await this.chatRepository.findOne({
       where: { name: 'Семейный Чат' },
-      relations: ['participants']
+      relations: ['participants'],
     });
 
     // Если семейный чат не существует, создаем его
@@ -74,6 +75,7 @@ export class ChatService {
       familyChat = this.chatRepository.create({
         name: 'Семейный Чат',
         participants: allUsers,
+        isPrivate: false, // Mark as not private
       });
 
       familyChat = await this.chatRepository.save(familyChat);
@@ -104,6 +106,60 @@ export class ChatService {
     }
 
     return familyChat;
+  }
+
+  /**
+   * Находит или создает приватный чат между двумя пользователями.
+   * Если чат уже существует, возвращает его. Иначе создает новый.
+   * @param user1Id - ID первого пользователя.
+   * @param user2Id - ID второго пользователя.
+   * @returns Promise<Chat> - Существующий или новый приватный чат.
+   * @throws NotFoundException Если один из пользователей не найден.
+   * @throws BadRequestException Если ID пользователей совпадают.
+   * @example
+   * ```typescript
+   * const chat = await chatService.findOrCreatePrivateChat('user-id-1', 'user-id-2');
+   * ```
+   * @since 1.0.0
+   * @author ИИ-Ассистент + Bessonniy
+   */
+  async findOrCreatePrivateChat(user1Id: string, user2Id: string): Promise<Chat> {
+    if (user1Id === user2Id) {
+      throw new BadRequestException('Cannot create a private chat with yourself.');
+    }
+
+    const user1 = await this.usersService.findOne(user1Id);
+    const user2 = await this.usersService.findOne(user2Id);
+
+    if (!user1 || !user2) {
+      throw new NotFoundException('One or both users not found.');
+    }
+
+    // Check if a private chat between these two users already exists
+    const existingChats = await this.chatRepository.find({
+      relations: ['participants'],
+      where: {
+        isPrivate: true, // Filter only private chats
+      },
+    });
+
+    for (const chat of existingChats) {
+      // Ensure it's a private chat (exactly two participants) and contains both users
+      if (chat.participants.length === 2 &&
+          chat.participants.some(p => p.id === user1Id) &&
+          chat.participants.some(p => p.id === user2Id)) {
+        return chat; // Found existing private chat
+      }
+    }
+
+    // If no existing private chat, create a new one
+    const newChat = this.chatRepository.create({
+      name: `${user1.username} & ${user2.username}`,
+      participants: [user1, user2],
+      isPrivate: true, // Mark as private
+    });
+
+    return this.chatRepository.save(newChat);
   }
 
   async findChatById(id: string): Promise<Chat | null> {

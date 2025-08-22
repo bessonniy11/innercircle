@@ -3,6 +3,7 @@ import 'package:frontend/features/auth/presentation/screens/registration_screen.
 import 'package:frontend/features/chat/presentation/screens/chat_list_screen.dart';
 import 'package:frontend/core/api/api_client.dart';
 import 'package:frontend/core/socket/socket_client.dart';
+import 'package:provider/provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,8 +15,6 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final ApiClient _apiClient = ApiClient();
-  final SocketClient _socketClient = SocketClient();
 
   @override
   void dispose() {
@@ -30,14 +29,16 @@ class _LoginScreenState extends State<LoginScreen> {
     final String password = _passwordController.text;
 
     try {
-      final response = await _apiClient.dio.post('/auth/login', data: {'username': username, 'password': password});
+      final apiClient = Provider.of<ApiClient>(context, listen: false);
+      final socketClient = Provider.of<SocketClient>(context, listen: false);
+      final response = await apiClient.dio.post('/auth/login', data: {'username': username, 'password': password});
       final String accessToken = response.data['access_token'];
-      _apiClient.setAuthToken(accessToken);
-      _socketClient.setToken(accessToken);
-      _socketClient.connect();
+      apiClient.setAuthToken(accessToken);
+      socketClient.setToken(accessToken);
+      socketClient.connect();
       
       // Decode JWT to get user ID
-      final Map<String, dynamic> decodedToken = _apiClient.decodeJwtToken(accessToken);
+      final Map<String, dynamic> decodedToken = apiClient.decodeJwtToken(accessToken);
       final String currentUserId = decodedToken['sub']; // 'sub' is typically the user ID
       final String currentUsername = decodedToken['username']; // 'username' is typically the username
 
@@ -47,8 +48,6 @@ class _LoginScreenState extends State<LoginScreen> {
         context,
         MaterialPageRoute(
           builder: (context) => ChatListScreen(
-            apiClient: _apiClient,
-            socketClient: _socketClient,
             currentUserId: currentUserId, // Pass the extracted user ID
             currentUsername: currentUsername, // Pass the extracted username
           ),
