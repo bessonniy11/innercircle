@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'dart:convert';
+import 'package:zvonilka/core/config/api_config.dart';
 
 class ApiClient {
   late Dio _dio;
@@ -8,9 +9,9 @@ class ApiClient {
   ApiClient() {
     _dio = Dio(
       BaseOptions(
-        baseUrl: 'http://localhost:3000', // Backend на localhost для разработки
-        connectTimeout: const Duration(milliseconds: 5000), // 5 seconds
-        receiveTimeout: const Duration(milliseconds: 3000), // 3 seconds
+        baseUrl: ApiConfig.currentBackendUrl,
+        connectTimeout: ApiConfig.connectTimeout,
+        receiveTimeout: ApiConfig.receiveTimeout,
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',

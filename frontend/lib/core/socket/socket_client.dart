@@ -1,5 +1,6 @@
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:flutter/foundation.dart';
+import 'package:zvonilka/core/config/api_config.dart';
 
 class SocketClient {
   late IO.Socket _socket;
@@ -11,7 +12,7 @@ class SocketClient {
 
   void _initializeSocket() {
     _socket = IO.io(
-      'http://localhost:3000', // Backend на localhost для разработки
+      ApiConfig.currentBackendUrl,
       IO.OptionBuilder()
           .setTransports(['websocket'])
           .enableForceNew()
