@@ -71,6 +71,10 @@ class _MessageScreenState extends State<MessageScreen> {
         _messages.addAll(messageData.map((json) => Message.fromJson(json)).toList());
         _isLoading = false;
       });
+      
+      // Отмечаем сообщения как прочитанные после загрузки
+      _markMessagesAsRead();
+      
       _scrollToBottom();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -80,6 +84,13 @@ class _MessageScreenState extends State<MessageScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  /// Отмечает сообщения в текущем чате как прочитанные
+  void _markMessagesAsRead() {
+    widget.socketClient.socket.emit('markAsRead', {
+      'chatId': widget.chatId,
+    });
   }
 
   void _setupSocketListeners() {
@@ -101,6 +112,10 @@ class _MessageScreenState extends State<MessageScreen> {
         setState(() {
           _messages.add(receivedMessage);
         });
+        
+        // Отмечаем как прочитанные новые сообщения
+        _markMessagesAsRead();
+        
         _scrollToBottom();
       }
     });
@@ -171,7 +186,7 @@ class _MessageScreenState extends State<MessageScreen> {
                                 style: const TextStyle(fontSize: 16.0),
                               ),
                               Text(
-                                '${message.createdAt.hour}:${message.createdAt.minute}',
+                                '${message.createdAt.hour.toString().padLeft(2, '0')}:${message.createdAt.minute.toString().padLeft(2, '0')}',
                                 style: const TextStyle(fontSize: 10.0, color: Colors.black45),
                               ),
                             ],

@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 class Message {
   final String id;
   final String content;
@@ -24,7 +22,7 @@ class Message {
       senderId: json['sender']['id'] as String, // Assuming sender is an object with id
       senderUsername: json['sender']['username'] as String, // Assuming sender is an object with username
       chatId: json['chat']['id'] as String, // Парсинг chatId из вложенного объекта chat
-      createdAt: DateTime.parse(json['createdAt'] as String),
+      createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
     );
   }
 

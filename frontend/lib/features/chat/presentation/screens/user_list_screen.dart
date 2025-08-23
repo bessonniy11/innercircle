@@ -65,7 +65,6 @@ class _UserListScreenState extends State<UserListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Участники Семьи'),
-        backgroundColor: Theme.of(context).primaryColor,
       ),
       body: FutureBuilder<List<UserPublicDto>>(
         future: _usersFuture,

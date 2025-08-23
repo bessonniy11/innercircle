@@ -1,8 +1,9 @@
-import { Injectable, BadRequestException, NotFoundException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, MoreThan, Not } from 'typeorm';
 import { Chat } from './entities/chat.entity';
 import { Message } from './entities/message.entity';
+import { ChatParticipant } from './entities/chat-participant.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateChatDto } from './dto/create-chat.dto';
 import { UsersService } from '../users/users.service'; // Импортируем UsersService
@@ -12,6 +13,10 @@ export class ChatService {
   constructor(
     @InjectRepository(Chat)
     private chatRepository: Repository<Chat>,
+    @InjectRepository(Message)
+    private messageRepository: Repository<Message>,
+    @InjectRepository(ChatParticipant)
+    private chatParticipantRepository: Repository<ChatParticipant>,
     @Inject(forwardRef(() => UsersService))
     private usersService: UsersService, // Инжектируем UsersService с forwardRef
   ) {}
@@ -166,11 +171,99 @@ export class ChatService {
     return this.chatRepository.findOne({ where: { id }, relations: ['participants', 'messages'] });
   }
 
+  /**
+   * Находит все чаты пользователя с оптимизированной загрузкой последних сообщений
+   * и подсчетом непрочитанных сообщений.
+   * 
+   * В MVP версии: загружает последнее сообщение для каждого чата и считает
+   * количество непрочитанных сообщений на основе lastReadAt.
+   * 
+   * @param userId - ID пользователя
+   * @returns Promise<Chat[]> - Массив чатов с последними сообщениями и счетчиками непрочитанных
+   * @since 1.0.0
+   * @author ИИ-Ассистент + Bessonniy
+   */
   async findUserChats(userId: string): Promise<Chat[]> {
-    return this.chatRepository.find({
+    const chats = await this.chatRepository.find({
       where: { participants: { id: userId } },
-      relations: ['participants', 'messages'],
+      relations: ['participants'],
+      order: { updatedAt: 'DESC' }, // Сортируем по времени последнего обновления
     });
+
+    // Для каждого чата загружаем дополнительную информацию
+    for (const chat of chats) {
+      // Загружаем последнее сообщение
+      const lastMessage = await this.messageRepository.findOne({
+        where: { chatId: chat.id },
+        relations: ['sender'],
+        order: { createdAt: 'DESC' },
+      });
+      
+      // Загружаем информацию о прочтении для этого пользователя
+      const chatParticipant = await this.chatParticipantRepository.findOne({
+        where: { chatId: chat.id, userId: userId },
+      });
+      
+      // Подсчитываем непрочитанные сообщения (исключая собственные)
+      let unreadCount = 0;
+      if (chatParticipant && chatParticipant.lastReadAt) {
+        unreadCount = await this.messageRepository.count({
+          where: {
+            chatId: chat.id,
+            createdAt: MoreThan(chatParticipant.lastReadAt),
+            senderId: Not(userId), // Исключаем собственные сообщения
+          },
+        });
+      } else {
+        // Если пользователь никогда не читал сообщения в этом чате
+        unreadCount = await this.messageRepository.count({
+          where: { 
+            chatId: chat.id,
+            senderId: Not(userId), // Исключаем собственные сообщения
+          },
+        });
+      }
+      
+      // Добавляем дополнительную информацию к объекту чата
+      (chat as any).lastMessage = lastMessage;
+      (chat as any).unreadCount = unreadCount;
+    }
+
+    return chats;
+  }
+
+  /**
+   * Отмечает сообщения в чате как прочитанные для указанного пользователя.
+   * 
+   * В MVP версии: простое обновление lastReadAt на текущее время.
+   * В будущих версиях: может быть расширено для отдельных сообщений.
+   * 
+   * @param chatId - ID чата
+   * @param userId - ID пользователя
+   * @returns Promise<void>
+   * @since 1.0.0
+   * @author ИИ-Ассистент + Bessonniy
+   */
+  async markMessagesAsRead(chatId: string, userId: string): Promise<void> {
+    // Ищем или создаем запись ChatParticipant
+    let chatParticipant = await this.chatParticipantRepository.findOne({
+      where: { chatId, userId },
+    });
+
+    if (!chatParticipant) {
+      // Создаем новую запись, если её нет
+      chatParticipant = this.chatParticipantRepository.create({
+        chatId,
+        userId,
+        lastReadAt: new Date(),
+        joinedAt: new Date(),
+      });
+    } else {
+      // Обновляем время последнего прочтения
+      chatParticipant.lastReadAt = new Date();
+    }
+
+    await this.chatParticipantRepository.save(chatParticipant);
   }
 
   async addParticipantToChat(chatId: string, userId: string): Promise<Chat> {
@@ -196,10 +289,48 @@ export class ChatService {
     return this.chatRepository.save(chat);
   }
 
-  async deleteChat(chatId: string): Promise<void> {
-    const result = await this.chatRepository.delete(chatId);
-    if (result.affected === 0) {
-      throw new NotFoundException(`Chat with ID ${chatId} not found`);
+  /**
+   * Удаляет чат по ID с проверкой прав доступа
+   * 
+   * @param chatId - ID чата для удаления
+   * @param userId - ID пользователя, который хочет удалить чат
+   * @throws ForbiddenException если чат нельзя удалить
+   * @throws NotFoundException если чат не найден
+   * @since 1.0.0
+   * @author ИИ-Ассистент + Bessonniy
+   */
+  async deleteChat(chatId: string, userId: string): Promise<void> {
+    // Находим чат с участниками
+    const chat = await this.chatRepository.findOne({
+      where: { id: chatId },
+      relations: ['participants'],
+    });
+
+    if (!chat) {
+      throw new NotFoundException('Chat not found');
     }
+
+    // Проверяем, что пользователь участник чата
+    const isParticipant = chat.participants.some(p => p.id === userId);
+    if (!isParticipant) {
+      throw new ForbiddenException('You are not a participant of this chat');
+    }
+
+    // Запрещаем удаление семейного чата
+    if (chat.name === 'Семейный Чат') {
+      throw new ForbiddenException('Cannot delete family chat');
+    }
+
+    // Используем транзакцию для безопасного удаления
+    await this.chatRepository.manager.transaction(async transactionalEntityManager => {
+      // Сначала удаляем все сообщения в чате
+      await transactionalEntityManager.delete('message', { chatId: chatId });
+      
+      // Затем удаляем записи участников  
+      await transactionalEntityManager.delete('chat_participants', { chatId: chatId });
+      
+      // И наконец удаляем сам чат
+      await transactionalEntityManager.delete('chat', { id: chatId });
+    });
   }
 }

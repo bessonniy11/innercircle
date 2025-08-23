@@ -123,10 +123,49 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         throw new Error('Chat not found or user not a participant');
       }
       const messages = await this.messageService.getMessagesForChat(chatId, limit, offset);
+      
+      // Отмечаем сообщения как прочитанные при загрузке чата
+      await this.chatService.markMessagesAsRead(chatId, user.id);
+      
       client.emit('chatMessages', messages);
       return { event: 'chatMessages', data: messages };
     } catch (error) {
       console.error('Error getting chat messages:', error.message);
+      return { event: 'error', data: error.message };
+    }
+  }
+
+  /**
+   * Отмечает сообщения в чате как прочитанные для текущего пользователя
+   * 
+   * @param payload - Объект с chatId
+   * @param client - WebSocket клиент
+   * @returns Результат операции
+   * @since 1.0.0
+   * @author ИИ-Ассистент + Bessonniy
+   */
+  @SubscribeMessage('markAsRead')
+  async markAsRead(@MessageBody() payload: { chatId: string }, @ConnectedSocket() client: Socket) {
+    const user = (client as any).user;
+    if (!user) { 
+      return { event: 'error', data: 'Unauthorized' }; 
+    }
+
+    try {
+      const { chatId } = payload;
+      
+      // Проверяем что пользователь участник чата
+      const chat = await this.chatService.findChatById(chatId);
+      if (!chat || !chat.participants.some(p => p.id === user.id)) {
+        return { event: 'error', data: 'Chat not found or user not a participant' };
+      }
+
+      // Отмечаем сообщения как прочитанные
+      await this.chatService.markMessagesAsRead(chatId, user.id);
+      
+      return { event: 'markedAsRead', data: { chatId, userId: user.id } };
+    } catch (error) {
+      console.error('Error marking messages as read:', error.message);
       return { event: 'error', data: error.message };
     }
   }

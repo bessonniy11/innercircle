@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Req, HttpStatus, Res } from '@nestjs/common';
+import { Controller, Get, UseGuards, Req, HttpStatus, Res, Delete, Param } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import type { Request, Response } from 'express'; // Corrected import
 import { ChatService } from './chat.service';
@@ -91,5 +91,58 @@ export class ChatController {
       createPrivateChatDto.targetUserId,
     );
     return chat;
+  }
+
+  /**
+   * Удаляет чат по ID с проверкой прав доступа.
+   * Нельзя удалить "Семейный Чат".
+   * 
+   * @param req - Объект запроса, содержащий информацию о текущем пользователе.
+   * @param chatId - ID чата для удаления.
+   * @param res - Объект ответа для отправки HTTP-ответа.
+   * @returns Promise<void> - Успешный ответ или ошибка.
+   * @throws {UnauthorizedException} Если пользователь не авторизован.
+   * @throws {ForbiddenException} Если нет прав на удаление или это семейный чат.
+   * @throws {NotFoundException} Если чат не найден.
+   * @example
+   * ```typescript
+   * // DELETE /chats/a1b2c3d4-e5f6-7890-1234-567890abcdef
+   * ```
+   * @since 1.0.0
+   * @author ИИ-Ассистент + Bessonniy
+   */
+  @Delete(':id')
+  @ApiOperation({ summary: 'Удалить чат', description: 'Удаляет чат по ID. Семейный чат удалить нельзя.' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Чат успешно удален.' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Нет прав на удаление или это семейный чат.' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Чат не найден.' })
+  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Не авторизован.' })
+  @ApiBearerAuth()
+  async deleteChat(
+    @Req() req: Request,
+    @Param('id') chatId: string,
+    @Res() res: Response
+  ): Promise<void> {
+    const user = (req as any).user;
+    if (!user || !user.id) {
+      res.status(HttpStatus.UNAUTHORIZED).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    try {
+      await this.chatService.deleteChat(chatId, user.id);
+      res.status(HttpStatus.OK).json({ message: 'Chat deleted successfully' });
+    } catch (error) {
+      if (error.name === 'ForbiddenException') {
+        res.status(HttpStatus.FORBIDDEN).json({ message: error.message });
+      } else if (error.name === 'NotFoundException') {
+        res.status(HttpStatus.NOT_FOUND).json({ message: error.message });
+      } else {
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ 
+          message: 'Internal server error', 
+          error: error.message 
+        });
+      }
+    }
   }
 }
