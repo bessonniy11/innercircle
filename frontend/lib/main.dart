@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:zvonilka/features/auth/presentation/screens/login_screen.dart';
+import 'package:zvonilka/features/auth/presentation/screens/splash_screen.dart';
 import 'package:provider/provider.dart'; // Импортируем Provider
 import 'package:zvonilka/core/api/api_client.dart'; // Импортируем ApiClient
 import 'package:zvonilka/core/socket/socket_client.dart'; // Импортируем SocketClient
@@ -49,7 +49,7 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        home: const LoginScreen(),
+        home: const SplashScreen(),
       ),
     );
   }

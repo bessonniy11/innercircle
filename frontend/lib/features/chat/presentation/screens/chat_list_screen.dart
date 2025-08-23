@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:zvonilka/core/api/api_client.dart';
 import 'package:zvonilka/core/socket/socket_client.dart';
+import 'package:zvonilka/core/services/auth_service.dart';
+import 'package:zvonilka/features/auth/presentation/screens/login_screen.dart';
 import 'package:zvonilka/features/chat/presentation/screens/message_screen.dart';
 import 'package:zvonilka/features/chat/presentation/screens/user_list_screen.dart'; // Импорт UserListScreen
+import 'package:zvonilka/features/settings/presentation/screens/settings_screen.dart';
 import 'package:zvonilka/core/widgets/app_logo.dart';
 import 'package:provider/provider.dart'; // Corrected import for Provider
+import 'package:flutter/foundation.dart';
 
 class ChatListScreen extends StatefulWidget {
   final String currentUserId;
@@ -312,6 +316,73 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
     }
   }
 
+  /// Logout функциональность
+  Future<void> _logout() async {
+    try {
+      final authService = await AuthService.getInstance();
+      final apiClient = Provider.of<ApiClient>(context, listen: false);
+      final socketClient = Provider.of<SocketClient>(context, listen: false);
+
+      // Отключаем WebSocket и очищаем токен
+      socketClient.clearToken();
+      
+      // Очищаем токены из клиентов
+      apiClient.removeAuthToken();
+      
+      // Очищаем сохраненные данные
+      await authService.clearAuthData();
+      
+      debugPrint('🚪 Logout successful');
+
+      if (mounted) {
+        // Переходим на экран входа
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false, // Удаляем все предыдущие экраны
+        );
+      }
+    } catch (e) {
+      debugPrint('🔥 Logout error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ошибка при выходе из системы')),
+        );
+      }
+    }
+  }
+
+  /// Показать диалог подтверждения logout
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Выйти из аккаунта?'),
+          content: Text('Вы уверены, что хотите выйти из аккаунта "${widget.currentUsername}"?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Закрываем диалог
+              },
+              child: const Text('Отмена'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Закрываем диалог
+                _logout(); // Выходим
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+              child: const Text('Выйти'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -319,8 +390,79 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
         title: const AppBarLogo(),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh), // Добавляем кнопку обновления
+            icon: const Icon(Icons.refresh),
             onPressed: _fetchChats,
+            tooltip: 'Обновить чаты',
+          ),
+          PopupMenuButton<String>(
+            onSelected: (String value) {
+              switch (value) {
+                case 'profile':
+                  // Переход к экрану настроек (который включает профиль)
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SettingsScreen(
+                        currentUserId: widget.currentUserId,
+                        currentUsername: widget.currentUsername,
+                      ),
+                    ),
+                  );
+                  break;
+                case 'settings':
+                  // Переход к экрану настроек
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SettingsScreen(
+                        currentUserId: widget.currentUserId,
+                        currentUsername: widget.currentUsername,
+                      ),
+                    ),
+                  );
+                  break;
+                case 'logout':
+                  _showLogoutDialog();
+                  break;
+              }
+            },
+            itemBuilder: (BuildContext context) {
+              return [
+                PopupMenuItem<String>(
+                  value: 'profile',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.person, size: 20),
+                      const SizedBox(width: 12),
+                      Text(widget.currentUsername),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'settings',
+                  child: Row(
+                    children: [
+                      Icon(Icons.settings, size: 20),
+                      SizedBox(width: 12),
+                      Text('Настройки'),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(),
+                const PopupMenuItem<String>(
+                  value: 'logout',
+                  child: Row(
+                    children: [
+                      Icon(Icons.logout, size: 20, color: Colors.red),
+                      SizedBox(width: 12),
+                      Text('Выйти', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+              ];
+            },
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'Меню',
           ),
         ],
       ),

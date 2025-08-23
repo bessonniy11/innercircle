@@ -3,6 +3,7 @@ import 'package:zvonilka/features/auth/presentation/screens/registration_screen.
 import 'package:zvonilka/features/chat/presentation/screens/chat_list_screen.dart';
 import 'package:zvonilka/core/api/api_client.dart';
 import 'package:zvonilka/core/socket/socket_client.dart';
+import 'package:zvonilka/core/services/auth_service.dart';
 import 'package:zvonilka/core/widgets/app_logo.dart';
 
 import 'package:provider/provider.dart';
@@ -33,32 +34,49 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final apiClient = Provider.of<ApiClient>(context, listen: false);
       final socketClient = Provider.of<SocketClient>(context, listen: false);
+      final authService = await AuthService.getInstance();
+
       final response = await apiClient.dio.post('/auth/login', data: {'username': username, 'password': password});
       final String accessToken = response.data['access_token'];
-      apiClient.setAuthToken(accessToken);
-      socketClient.setToken(accessToken);
-      socketClient.connect();
       
-      // Decode JWT to get user ID
+      // Decode JWT to get user data
       final Map<String, dynamic> decodedToken = apiClient.decodeJwtToken(accessToken);
       final String currentUserId = decodedToken['sub']; // 'sub' is typically the user ID
       final String currentUsername = decodedToken['username']; // 'username' is typically the username
 
+      // ✅ Сохраняем данные аутентификации для persistent login
+      await authService.saveAuthData(
+        token: accessToken,
+        userId: currentUserId,
+        username: currentUsername,
+      );
+
+      // Настраиваем клиенты
+      apiClient.setAuthToken(accessToken);
+      socketClient.setToken(accessToken);
+      socketClient.connect();
+
+      debugPrint('🎉 Login successful: $currentUsername');
 
       // Navigate to chat list screen after successful login
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ChatListScreen(
-            currentUserId: currentUserId, // Pass the extracted user ID
-            currentUsername: currentUsername, // Pass the extracted username
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ChatListScreen(
+              currentUserId: currentUserId,
+              currentUsername: currentUsername,
+            ),
           ),
-        ),
-      );
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ошибка входа. Проверьте данные и подключение к серверу.')),
-      );
+      debugPrint('🔥 Login error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ошибка входа. Проверьте данные и подключение к серверу.')),
+        );
+      }
     }
   }
 

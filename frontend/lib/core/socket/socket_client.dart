@@ -47,5 +47,10 @@ class SocketClient {
     _socket.disconnect();
   }
 
+  void clearToken() {
+    _token = null;
+    disconnect();
+  }
+
   IO.Socket get socket => _socket;
 } 
