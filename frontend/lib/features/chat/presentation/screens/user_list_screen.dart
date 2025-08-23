@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:frontend/core/api/api_client.dart'; // Предполагаем, что ApiClient находится здесь
-import 'package:frontend/features/auth/domain/models/user_public_model.dart'; // Импортируем новый UserPublicDto
-import 'package:frontend/features/chat/presentation/screens/message_screen.dart'; // Импортируем MessageScreen
-import 'package:frontend/core/socket/socket_client.dart'; // Импортируем SocketClient
+import 'package:zvonilka/core/api/api_client.dart'; // Предполагаем, что ApiClient находится здесь
+import 'package:zvonilka/features/auth/domain/models/user_public_model.dart'; // Импортируем новый UserPublicDto
+import 'package:zvonilka/features/chat/presentation/screens/message_screen.dart'; // Импортируем MessageScreen
+import 'package:zvonilka/core/socket/socket_client.dart'; // Импортируем SocketClient
 
 /**
  * Экран списка пользователей.

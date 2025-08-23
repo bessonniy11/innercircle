@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/features/auth/presentation/screens/registration_screen.dart';
-import 'package:frontend/features/chat/presentation/screens/chat_list_screen.dart';
-import 'package:frontend/core/api/api_client.dart';
-import 'package:frontend/core/socket/socket_client.dart';
+import 'package:zvonilka/features/auth/presentation/screens/registration_screen.dart';
+import 'package:zvonilka/features/chat/presentation/screens/chat_list_screen.dart';
+import 'package:zvonilka/core/api/api_client.dart';
+import 'package:zvonilka/core/socket/socket_client.dart';
+import 'package:zvonilka/core/widgets/app_logo.dart';
+
 import 'package:provider/provider.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -54,9 +56,8 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
     } catch (e) {
-
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Login failed. Please check your credentials.')),
+        const SnackBar(content: Text('Ошибка входа. Проверьте данные и подключение к серверу.')),
       );
     }
   }
@@ -65,13 +66,19 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Вход в Мессенджер'),
+        title: const Text('Вход в Звонилку'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
+            // Логотип приложения
+            const AppLogo(
+              size: 120,
+              showTitle: true,
+            ),
+            const SizedBox(height: 48.0),
             TextField(
               controller: _usernameController,
               decoration: const InputDecoration(

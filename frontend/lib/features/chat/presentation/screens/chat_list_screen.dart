@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/core/api/api_client.dart';
-import 'package:frontend/core/socket/socket_client.dart';
-import 'package:frontend/features/chat/presentation/screens/message_screen.dart';
-import 'package:frontend/features/chat/presentation/screens/user_list_screen.dart'; // Импорт UserListScreen
+import 'package:zvonilka/core/api/api_client.dart';
+import 'package:zvonilka/core/socket/socket_client.dart';
+import 'package:zvonilka/features/chat/presentation/screens/message_screen.dart';
+import 'package:zvonilka/features/chat/presentation/screens/user_list_screen.dart'; // Импорт UserListScreen
+import 'package:zvonilka/core/widgets/app_logo.dart';
 import 'package:provider/provider.dart'; // Corrected import for Provider
 
 class ChatListScreen extends StatefulWidget {
@@ -315,7 +316,7 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Мои Чаты'),
+        title: const AppBarLogo(),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh), // Добавляем кнопку обновления

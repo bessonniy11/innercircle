@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/core/api/api_client.dart';
-import 'package:frontend/core/socket/socket_client.dart';
-import 'package:frontend/features/chat/domain/models/message_model.dart'; // Import MessageModel
+import 'package:zvonilka/core/api/api_client.dart';
+import 'package:zvonilka/core/socket/socket_client.dart';
+import 'package:zvonilka/features/chat/domain/models/message_model.dart'; // Import MessageModel
 
 class MessageScreen extends StatefulWidget {
   final String chatId;

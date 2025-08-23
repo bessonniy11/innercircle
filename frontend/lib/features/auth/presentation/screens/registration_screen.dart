@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/core/api/api_client.dart';
-import 'package:frontend/features/auth/presentation/screens/login_screen.dart';
+import 'package:zvonilka/core/api/api_client.dart';
+import 'package:zvonilka/features/auth/presentation/screens/login_screen.dart';
+import 'package:zvonilka/core/widgets/app_logo.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -51,13 +52,19 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Регистрация'),
+        title: const Text('Регистрация в Звонилке'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
+            // Логотип приложения
+            const AppLogo(
+              size: 100,
+              showTitle: true,
+            ),
+            const SizedBox(height: 32.0),
             TextField(
               controller: _usernameController,
               decoration: const InputDecoration(

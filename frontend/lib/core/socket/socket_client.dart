@@ -11,7 +11,7 @@ class SocketClient {
 
   void _initializeSocket() {
     _socket = IO.io(
-      'http://localhost:3000', // TODO: Replace with your backend URL
+      'http://localhost:3000', // Backend на localhost для разработки
       IO.OptionBuilder()
           .setTransports(['websocket'])
           .enableForceNew()

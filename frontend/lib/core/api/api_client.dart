@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
-import 'dart:convert'; // Add this import
+import 'dart:convert';
 
 class ApiClient {
   late Dio _dio;
@@ -8,7 +8,7 @@ class ApiClient {
   ApiClient() {
     _dio = Dio(
       BaseOptions(
-        baseUrl: 'http://localhost:3000', // TODO: Replace with your backend URL
+        baseUrl: 'http://localhost:3000', // Backend на localhost для разработки
         connectTimeout: const Duration(milliseconds: 5000), // 5 seconds
         receiveTimeout: const Duration(milliseconds: 3000), // 3 seconds
         headers: {
