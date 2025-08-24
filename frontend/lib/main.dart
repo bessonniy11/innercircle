@@ -3,6 +3,7 @@ import 'package:zvonilka/features/auth/presentation/screens/splash_screen.dart';
 import 'package:provider/provider.dart'; // Импортируем Provider
 import 'package:zvonilka/core/api/api_client.dart'; // Импортируем ApiClient
 import 'package:zvonilka/core/socket/socket_client.dart'; // Импортируем SocketClient
+import 'package:zvonilka/core/socket/call_socket_client.dart'; // Импортируем CallSocketClient
 import 'package:zvonilka/core/config/api_config.dart';
 
 void main() {
@@ -23,6 +24,9 @@ class MyApp extends StatelessWidget {
         ),
         Provider<SocketClient>(
           create: (_) => SocketClient(),
+        ),
+        Provider<CallSocketClient>(
+          create: (_) => CallSocketClient(),
         ),
       ],
       child: MaterialApp(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:zvonilka/core/api/api_client.dart';
 import 'package:zvonilka/core/socket/socket_client.dart';
+import 'package:zvonilka/core/socket/call_socket_client.dart';
 import 'package:zvonilka/core/services/auth_service.dart';
 import 'package:zvonilka/features/auth/presentation/screens/login_screen.dart';
 import 'package:zvonilka/features/chat/presentation/screens/message_screen.dart';
@@ -322,9 +323,15 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
       final authService = await AuthService.getInstance();
       final apiClient = Provider.of<ApiClient>(context, listen: false);
       final socketClient = Provider.of<SocketClient>(context, listen: false);
+      final callSocketClient = Provider.of<CallSocketClient>(context, listen: false);
 
       // Отключаем WebSocket и очищаем токен
+      debugPrint('🔔 ChatListScreen: Отключаю основной сокет для сообщений...');
       socketClient.clearToken();
+      
+      debugPrint('🔔 ChatListScreen: Отключаю сокет для звонков...');
+      callSocketClient.disconnect();
+      debugPrint('🔔 ChatListScreen: Вызов callSocketClient.disconnect() завершен');
       
       // Очищаем токены из клиентов
       apiClient.removeAuthToken();
