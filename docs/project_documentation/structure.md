@@ -48,6 +48,15 @@ innercircle/
 │   │   │   ├── invitation-codes.module.ts      # Модуль пригласительных кодов
 │   │   │   └── 📁 dto/                         # Data Transfer Objects
 │   │   │       └── create-invitation-code.dto.ts # DTO для создания кода
+│   │   ├── 📁 call/                       # Модуль звонков (НОВОЕ - 25.08.2025)
+│   │   │   ├── call.controller.ts               # HTTP контроллер для управления звонками ✅
+│   │   │   ├── call.service.ts                  # Сервис управления звонками ✅
+│   │   │   ├── call.module.ts                   # Модуль звонков ✅
+│   │   │   ├── dto/                             # Data Transfer Objects
+│   │   │   │   ├── initiate-call.dto.ts       # DTO для инициации звонка ✅
+│   │   │   │   └── call-response.dto.ts       # DTO для ответа на звонок ✅
+│   │   │   └── entities/                      # Сущности TypeORM
+│   │   │       └── call.entity.ts             # Сущность звонка ✅
 │   │   ├── app.controller.ts                   # Корневой контроллер
 │   │   ├── app.service.ts                      # Корневой сервис
 │   │   ├── app.module.ts                       # Корневой модуль приложения
@@ -213,6 +222,24 @@ CREATE TABLE chat_participants (
     "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE("chatId", "userId")  -- Уникальная связь пользователь-чат
+);
+```
+
+#### 6. **calls** - Звонки (НОВОЕ - 25.08.2025)
+```sql
+CREATE TABLE calls (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "callerId" UUID REFERENCES users(id),           -- Кто звонит
+    "receiverId" UUID REFERENCES users(id),         -- Кому звонят
+    "status" VARCHAR NOT NULL,                      -- 'initiating', 'ringing', 'answered', 'ended', 'missed', 'rejected'
+    "type" VARCHAR NOT NULL,                        -- 'voice', 'video' (в будущем)
+    "startedAt" TIMESTAMP,                          -- Когда начался разговор
+    "endedAt" TIMESTAMP,                            -- Когда закончился
+    "duration" INTEGER,                             -- Длительность в секундах
+    "callerIceCandidates" JSONB,                    -- ICE кандидаты звонящего
+    "receiverIceCandidates" JSONB,                  -- ICE кандидаты принимающего
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
@@ -505,7 +532,7 @@ NODE_ENV=production
 ---
 
 **Последнее обновление:** 24.08.2025  
-**Статус:** Авторизация ✅ | Семейный чат ✅ | Личные Чаты ✅ | Брендинг ✅ | **Production Deployment ✅**  
+**Статус:** MVP ПОЛНОСТЬЮ ЗАВЕРШЕН ✅ | Production Deployment ✅ | Готов к использованию ✅ | **Модуль Звонков в разработке 🚧**  
 **Версия структуры:** 5.0  
 **🌐 Production URL:** http://5.8.76.33 (готов к использованию)
 
@@ -617,10 +644,10 @@ INSERT INTO invitation_codes (code, "isUsed") VALUES ('secret_invite', false);
    - ✅ Repository pattern
 
 ### 📊 **Статистика Кодовой Базы (обновлено 23.08.2025)**
-- **Backend файлов:** ~27 (полностью документированы + новые entities)
+- **Backend файлов:** ~31 (полностью документированы + новые entities + модуль звонков)
 - **Frontend файлов:** ~16 (функционально завершены + брендинг компоненты)
 - **Database таблиц:** 5 (полностью настроены + расширена chat_participants)
-- **API endpoints:** 9 (все работают + DELETE /chats/:id)
+- **API endpoints:** 9 (все работают + DELETE /chats/:id) + планируется 5 endpoints для звонков
 - **WebSocket events:** 7 (полная функциональность + markAsRead)
 - **Брендинг ассетов:** 3 (app_icon.png, splash_logo.png, app_logo.dart)
 - **Сгенерированных иконок:** 50+ (все размеры Android + iOS автоматически)
