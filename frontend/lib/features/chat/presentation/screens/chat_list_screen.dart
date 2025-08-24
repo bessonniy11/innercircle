@@ -7,11 +7,12 @@ import 'package:zvonilka/features/auth/presentation/screens/login_screen.dart';
 import 'package:zvonilka/features/chat/presentation/screens/message_screen.dart';
 import 'package:zvonilka/features/chat/presentation/screens/user_list_screen.dart'; // Импорт UserListScreen
 import 'package:zvonilka/features/settings/presentation/screens/settings_screen.dart';
-import 'package:zvonilka/features/call/presentation/screens/call_test_screen.dart';
+
 import 'package:zvonilka/core/widgets/app_logo.dart';
 import 'package:provider/provider.dart'; // Corrected import for Provider
-import 'package:flutter/foundation.dart';
+
 import 'package:zvonilka/core/services/call_notification_service.dart';
+import 'package:zvonilka/core/services/webrtc_service.dart' as webrtc;
 
 class ChatListScreen extends StatefulWidget {
   final String currentUserId;
@@ -40,8 +41,8 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
     
     // Инициализируем сервис уведомлений для звонков
     final callNotificationService = Provider.of<CallNotificationService>(context, listen: false);
-    final callSocketClient = Provider.of<CallSocketClient>(context, listen: false);
-    callNotificationService.initializeListeners(context, callSocketClient);
+    final webrtcService = Provider.of<webrtc.WebRTCService>(context, listen: false);
+    callNotificationService.initializeWithWebRTCService(webrtcService, context);
   }
 
   @override
@@ -478,13 +479,7 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
             icon: const Icon(Icons.more_vert),
             tooltip: 'Меню',
           ),
-          IconButton(
-            icon: const Icon(Icons.phone),
-            onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const CallTestScreen()));
-            },
-            tooltip: 'Тест звонка',
-          ),
+
         ],
       ),
       body: _isLoading

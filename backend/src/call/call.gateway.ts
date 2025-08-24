@@ -130,12 +130,12 @@ import { JwtService } from '@nestjs/jwt';
      */
     @SubscribeMessage('initiate_call')
     async handleInitiateCall(
-      @MessageBody() data: { remoteUserId: string; callType: string; sdp: string; type: string },
+      @MessageBody() data: { remoteUserId: string; callType: string; sdp: string; type: string; callerUsername?: string },
       @ConnectedSocket() client: Socket
     ) {
       try {
         const user = client.data.user;
-        const { remoteUserId, callType, sdp, type } = data;
+        const { remoteUserId, callType, sdp, type, callerUsername } = data;
         
         this.logger.log(`Пользователь ${user.id} инициирует звонок к ${remoteUserId}`);
         
@@ -148,6 +148,7 @@ import { JwtService } from '@nestjs/jwt';
             callType: callType,
             sdp: sdp,
             type: type,
+            callerUsername: callerUsername || `User${user.id.substring(0, 4)}`, // Передаем имя звонящего
             timestamp: new Date().toISOString()
           });
           
@@ -159,6 +160,120 @@ import { JwtService } from '@nestjs/jwt';
       } catch (error) {
         this.logger.error(`Ошибка обработки инициации звонка: ${error.message}`);
         await client.emit('error', { message: 'Ошибка инициации звонка' });
+      }
+    }
+
+    /**
+     * Обработка принятия звонка
+     *
+     * @param data - Данные для принятия звонка
+     * @param client - WebSocket клиент
+     * @since 2.0.0
+     * @author ИИ-Ассистент + Bessonniy
+     */
+    @SubscribeMessage('accept_call')
+    async handleAcceptCall(
+      @MessageBody() data: { callId: string },
+      @ConnectedSocket() client: Socket
+    ) {
+      try {
+        const user = client.data.user;
+        const { callId } = data;
+
+        this.logger.log(`Пользователь ${user.id} принимает звонок ${callId}`);
+
+        // Извлекаем ID звонящего из callId (формат: call_timestamp_callerId)
+        const parts = callId.split('_');
+        if (parts.length >= 3) {
+          const callerId = parts[2];
+          const callerSocket = this.userSockets.get(callerId);
+          
+          if (callerSocket) {
+            await callerSocket.emit('call_accepted', { callId });
+            this.logger.log(`Уведомление о принятии звонка отправлено пользователю ${callerId}`);
+          } else {
+            this.logger.warn(`Пользователь ${callerId} не подключен к WebSocket`);
+          }
+        }
+      } catch (error) {
+        this.logger.error(`Ошибка обработки принятия звонка: ${error.message}`);
+        await client.emit('error', { message: 'Ошибка принятия звонка' });
+      }
+    }
+
+    /**
+     * Обработка отклонения звонка
+     *
+     * @param data - Данные для отклонения звонка
+     * @param client - WebSocket клиент
+     * @since 2.0.0
+     * @author ИИ-Ассистент + Bessonniy
+     */
+    @SubscribeMessage('reject_call')
+    async handleRejectCall(
+      @MessageBody() data: { callId: string },
+      @ConnectedSocket() client: Socket
+    ) {
+      try {
+        const user = client.data.user;
+        const { callId } = data;
+
+        this.logger.log(`Пользователь ${user.id} отклоняет звонок ${callId}`);
+
+        // Извлекаем ID звонящего из callId (формат: call_timestamp_callerId)
+        const parts = callId.split('_');
+        if (parts.length >= 3) {
+          const callerId = parts[2];
+          const callerSocket = this.userSockets.get(callerId);
+          
+          if (callerSocket) {
+            await callerSocket.emit('call_rejected', { callId });
+            this.logger.log(`Уведомление об отклонении звонка отправлено пользователю ${callerId}`);
+          } else {
+            this.logger.warn(`Пользователь ${callerId} не подключен к WebSocket`);
+          }
+        }
+      } catch (error) {
+        this.logger.error(`Ошибка обработки отклонения звонка: ${error.message}`);
+        await client.emit('error', { message: 'Ошибка отклонения звонка' });
+      }
+    }
+
+    /**
+     * Обработка завершения звонка
+     *
+     * @param data - Данные для завершения звонка
+     * @param client - WebSocket клиент
+     * @since 2.0.0
+     * @author ИИ-Ассистент + Bessonniy
+     */
+    @SubscribeMessage('end_call')
+    async handleEndCall(
+      @MessageBody() data: { callId: string },
+      @ConnectedSocket() client: Socket
+    ) {
+      try {
+        const user = client.data.user;
+        const { callId } = data;
+
+        this.logger.log(`Пользователь ${user.id} завершает звонок ${callId}`);
+
+        // Извлекаем ID другого участника из callId
+        const parts = callId.split('_');
+        if (parts.length >= 3) {
+          const otherUserId = parts[2];
+          const otherUserSocket = this.userSockets.get(otherUserId);
+          
+          if (otherUserSocket) {
+            await otherUserSocket.emit('call_ended', { callId });
+            this.logger.log(`Уведомление о завершении звонка отправлено пользователю ${otherUserId}`);
+          } else {
+            this.logger.warn(`Пользователь ${otherUserId} не подключен к WebSocket`);
+          }
+        }
+      } catch (error) {
+        this.logger.error(`Ошибка обработки завершения звонка: ${error.message}`);
+        await client.emit('error', { message: 'Ошибка завершения звонка' });
       }
     }
   

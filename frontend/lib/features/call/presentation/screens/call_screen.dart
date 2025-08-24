@@ -57,7 +57,7 @@ class _CallScreenState extends State<CallScreen> {
       } else {
         // Исходящий звонок - инициализируем WebRTC
         await _initializeWebRTC();
-        await _startCall();
+        await _startOutgoingCall();
       }
     } catch (e) {
       debugPrint('🔥 Error initializing call: $e');
@@ -82,17 +82,22 @@ class _CallScreenState extends State<CallScreen> {
     }
   }
 
-  /// Начало звонка
-  Future<void> _startCall() async {
+  /// Запуск исходящего звонка
+  Future<void> _startOutgoingCall() async {
     try {
-      // Инициируем звонок через WebRTCService
+      setState(() {
+        _isConnecting = true;
+      });
+
+      // Инициация звонка через WebRTCService
       final success = await _webrtcService.initiateCall(
         widget.call.receiverId, 
         _webrtcService.callType
       );
       
       if (success) {
-        debugPrint('🔊 Call started');
+        debugPrint('🔔 Call initiated successfully');
+        // НЕ запускаем таймер здесь - только когда звонок принят!
       } else {
         debugPrint('🔥 Failed to start call');
       }

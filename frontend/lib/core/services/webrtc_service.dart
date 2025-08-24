@@ -31,10 +31,14 @@ class WebRTCService extends ChangeNotifier {
   CallType _callType = CallType.audio;
   String? _currentCallId;
   String? _remoteUserId;
+  String? _remoteUsername; // Добавляем имя удаленного пользователя
   
   // Таймеры
   Timer? _callTimer;
   Timer? _iceGatheringTimer;
+  
+  // Callback для UI
+  Function(Map<String, dynamic>)? _onIncomingCall;
   
   // Конфигурация WebRTC
   final Map<String, dynamic> _rtcConfiguration = {
@@ -54,9 +58,15 @@ class WebRTCService extends ChangeNotifier {
   CallType get callType => _callType;
   String? get currentCallId => _currentCallId;
   String? get remoteUserId => _remoteUserId;
+  String? get remoteUsername => _remoteUsername;
   MediaStream? get localStream => _localStream;
   MediaStream? get remoteStream => _remoteStream;
   RTCPeerConnection? get peerConnection => _peerConnection;
+  
+  // Установка callback для UI
+  void setIncomingCallCallback(Function(Map<String, dynamic>) callback) {
+    _onIncomingCall = callback;
+  }
 
   // Настройка слушателей сокетов
   void _setupSocketListeners() {
@@ -70,7 +80,7 @@ class WebRTCService extends ChangeNotifier {
   }
 
   // Инициация звонка
-  Future<bool> initiateCall(String remoteUserId, CallType callType) async {
+  Future<bool> initiateCall(String remoteUserId, CallType callType, {String? callerUsername}) async {
     try {
       debugPrint('🔔 WebRTC: Инициация звонка к $remoteUserId (${callType.name})');
       
@@ -112,12 +122,13 @@ class WebRTCService extends ChangeNotifier {
         'callType': callType.name,
         'sdp': offer.sdp,
         'type': offer.type,
+        'callerUsername': callerUsername, // Добавляем имя звонящего
       });
 
-      // Запуск таймера звонка
-      _startCallTimer();
+      // НЕ запускаем таймер сразу - только когда звонок принят!
+      // _startCallTimer(); // УБИРАЕМ ЭТУ СТРОКУ!
       
-      debugPrint('🔔 WebRTC: Звонок инициирован успешно');
+      debugPrint('🔔 WebRTC: Звонок инициирован успешно (статус: calling)');
       return true;
       
     } catch (e) {
@@ -131,9 +142,12 @@ class WebRTCService extends ChangeNotifier {
   Future<bool> acceptCall(String callId, CallType callType) async {
     try {
       debugPrint('🔔 WebRTC: Принятие входящего звонка $callId');
+      debugPrint('🔔 WebRTC: Текущий статус: ${_callState.name}');
+      debugPrint('🔔 WebRTC: Текущий callId: $_currentCallId');
+      debugPrint('🔔 WebRTC: Удаленный пользователь: $_remoteUserId');
       
       if (_callState != CallState.incoming) {
-        debugPrint('🔥 WebRTC: Ошибка - не входящий звонок');
+        debugPrint('🔥 WebRTC: Ошибка - не входящий звонок. Статус: ${_callState.name}');
         return false;
       }
 
@@ -326,13 +340,31 @@ class WebRTCService extends ChangeNotifier {
         (e) => e.name == data['callType'],
         orElse: () => CallType.audio,
       );
+      final remoteUsername = data['callerUsername'] ?? 'Unknown User'; // Получаем имя звонящего
 
       debugPrint('🔔 WebRTC: Входящий звонок от $remoteUserId (${callType.name})');
+      debugPrint('🔔 WebRTC: Текущий статус: ${_callState.name}');
       
       _currentCallId = callId;
       _remoteUserId = remoteUserId;
       _callType = callType;
+      _remoteUsername = remoteUsername; // Сохраняем имя
       _setCallState(CallState.incoming);
+      
+      debugPrint('🔔 WebRTC: Статус изменен на: ${_callState.name}');
+      
+      // Уведомляем UI о необходимости показать экран входящего звонка
+      if (_onIncomingCall != null) {
+        debugPrint('🔔 WebRTC: Уведомляем UI о входящем звонке');
+        _onIncomingCall!({
+          'callId': callId,
+          'remoteUserId': remoteUserId,
+          'callType': callType.name,
+          'remoteUsername': remoteUsername,
+        });
+      } else {
+        debugPrint('⚠️ WebRTC: Callback для UI не установлен');
+      }
       
     } catch (e) {
       debugPrint('🔥 WebRTC: Ошибка обработки входящего звонка: $e');
@@ -344,10 +376,22 @@ class WebRTCService extends ChangeNotifier {
     try {
       final callId = data['callId'];
       
-      if (_currentCallId == callId) {
+      debugPrint('🔔 WebRTC: Получено принятие звонка: $callId');
+      debugPrint('🔔 WebRTC: Текущий статус: ${_callState.name}');
+      debugPrint('🔔 WebRTC: Текущий callId: $_currentCallId');
+      
+      // Проверяем, что это наш звонок (либо как звонящий, либо как принимающий)
+      if (_currentCallId == callId || _remoteUserId != null) {
         debugPrint('🔔 WebRTC: Звонок принят удаленным пользователем');
         _setCallState(CallState.connected);
-        _stopCallTimer();
+        // Запускаем таймер только когда звонок принят!
+        _startCallTimer();
+        
+        // TODO: Показать ActiveCallScreen для обоих пользователей
+        // Это нужно будет реализовать через Callback или Stream
+        debugPrint('🔔 WebRTC: Звонок подключен - нужно показать ActiveCallScreen');
+      } else {
+        debugPrint('⚠️ WebRTC: Принятие звонка не относится к текущему звонку');
       }
       
     } catch (e) {
@@ -360,9 +404,16 @@ class WebRTCService extends ChangeNotifier {
     try {
       final callId = data['callId'];
       
-      if (_currentCallId == callId) {
+      debugPrint('🔔 WebRTC: Получено отклонение звонка: $callId');
+      debugPrint('🔔 WebRTC: Текущий статус: ${_callState.name}');
+      debugPrint('🔔 WebRTC: Текущий callId: $_currentCallId');
+      
+      // Проверяем, что это наш звонок (либо как звонящий, либо как принимающий)
+      if (_currentCallId == callId || _remoteUserId != null) {
         debugPrint('🔔 WebRTC: Звонок отклонен удаленным пользователем');
         _resetCall();
+      } else {
+        debugPrint('⚠️ WebRTC: Отклонение звонка не относится к текущему звонку');
       }
       
     } catch (e) {
@@ -375,9 +426,16 @@ class WebRTCService extends ChangeNotifier {
     try {
       final callId = data['callId'];
       
-      if (_currentCallId == callId) {
+      debugPrint('🔔 WebRTC: Получено завершение звонка: $callId');
+      debugPrint('🔔 WebRTC: Текущий статус: ${_callState.name}');
+      debugPrint('🔔 WebRTC: Текущий callId: $_currentCallId');
+      
+      // Проверяем, что это наш звонок (либо как звонящий, либо как принимающий)
+      if (_currentCallId == callId || _remoteUserId != null) {
         debugPrint('🔔 WebRTC: Звонок завершен удаленным пользователем');
         _resetCall();
+      } else {
+        debugPrint('⚠️ WebRTC: Завершение звонка не относится к текущему звонку');
       }
       
     } catch (e) {
@@ -477,6 +535,7 @@ class WebRTCService extends ChangeNotifier {
     _peerConnection = null;
     _currentCallId = null;
     _remoteUserId = null;
+    _remoteUsername = null; // Сбрасываем имя удаленного пользователя
     
     _setCallState(CallState.idle);
   }

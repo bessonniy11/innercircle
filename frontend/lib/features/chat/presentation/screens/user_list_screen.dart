@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+
 import 'package:provider/provider.dart';
 import 'package:zvonilka/core/api/api_client.dart';
 import 'package:zvonilka/features/auth/domain/models/user_public_model.dart';
 import 'package:zvonilka/features/chat/presentation/screens/message_screen.dart';
 import 'package:zvonilka/core/socket/socket_client.dart';
-import 'package:zvonilka/features/call/domain/models/call_model.dart';
-import 'package:zvonilka/features/call/presentation/screens/call_screen.dart';
+
+import 'package:zvonilka/core/services/webrtc_service.dart' as webrtc;
+import 'package:zvonilka/core/socket/call_socket_client.dart';
+import 'package:zvonilka/features/call/presentation/screens/active_call_screen.dart';
 
 /**
  * Экран списка пользователей.
@@ -63,30 +66,59 @@ class _UserListScreenState extends State<UserListScreen> {
   }
 
   /// Начать звонок с пользователем
-  void _startCall(UserPublicDto user) {
-    // Создаем модель звонка
-    final call = CallModel(
-      id: DateTime.now().millisecondsSinceEpoch.toString(), // Временный ID
-      callerId: widget.currentUserId,
-      callerUsername: widget.currentUsername,
-      receiverId: user.id,
-      receiverUsername: user.username,
-      status: CallStatus.created,
-      type: CallType.voice,
-      createdAt: DateTime.now(),
-    );
-
-    // Переходим на экран звонка
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CallScreen(
-          call: call,
-          currentUserId: widget.currentUserId,
-          isIncoming: false,
-        ),
-      ),
-    );
+  Future<void> _startCall(UserPublicDto user) async {
+    try {
+      debugPrint('🔔 UserListScreen: Начинаем звонок к ${user.username}');
+      
+      // Получаем WebRTCService и CallSocketClient
+      final webrtcService = Provider.of<webrtc.WebRTCService>(context, listen: false);
+      final callSocketClient = Provider.of<CallSocketClient>(context, listen: false);
+      
+      // Проверяем, что сокет подключен
+      if (!callSocketClient.isConnected) {
+        debugPrint('🔥 UserListScreen: CallSocket не подключен');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ошибка: нет подключения к серверу звонков')),
+        );
+        return;
+      }
+      
+                         // Инициируем аудио звонок
+                   final success = await webrtcService.initiateCall(
+                     user.id, 
+                     webrtc.CallType.audio,
+                     callerUsername: widget.currentUsername,
+                   );
+      
+      if (success) {
+        debugPrint('🔔 UserListScreen: Звонок инициирован успешно');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Звонок к ${user.username} инициирован')),
+        );
+        // Навигация к экрану активного звонка
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ActiveCallScreen(
+              remoteUserId: user.id,
+              remoteUsername: user.username,
+              callType: webrtc.CallType.audio,
+            ),
+          ),
+        );
+      } else {
+        debugPrint('🔥 UserListScreen: Не удалось инициировать звонок');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Не удалось инициировать звонок')),
+        );
+      }
+      
+    } catch (e) {
+      debugPrint('🔥 UserListScreen: Ошибка при инициации звонка: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ошибка: ${e.toString()}')),
+      );
+    }
   }
 
   /// Открыть чат с пользователем

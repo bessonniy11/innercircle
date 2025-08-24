@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/services/webrtc_service.dart';
-import '../../../../core/socket/call_socket_client.dart';
+import 'active_call_screen.dart';
 
 /// Экран для отображения входящего звонка
 class IncomingCallScreen extends StatefulWidget {
   final String callId;
   final String remoteUserId;
   final String callType;
+  final String remoteUsername;
 
   const IncomingCallScreen({
     super.key,
     required this.callId,
     required this.remoteUserId,
     required this.callType,
+    required this.remoteUsername,
   });
 
   @override
@@ -22,14 +24,12 @@ class IncomingCallScreen extends StatefulWidget {
 
 class _IncomingCallScreenState extends State<IncomingCallScreen> {
   late WebRTCService _webrtcService;
-  late CallSocketClient _callSocketClient;
   bool _isProcessing = false;
 
   @override
   void initState() {
     super.initState();
     _webrtcService = Provider.of<WebRTCService>(context, listen: false);
-    _callSocketClient = Provider.of<CallSocketClient>(context, listen: false);
   }
 
   /// Принятие входящего звонка
@@ -46,14 +46,23 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
       // Принимаем звонок через WebRTCService
       final success = await _webrtcService.acceptCall(
         widget.callId,
-        _webrtcService.callType,
+        widget.callType == 'video' ? CallType.video : CallType.audio, // Используем тип из widget
       );
 
       if (success) {
         debugPrint('🔔 IncomingCallScreen: Звонок принят успешно');
-        // TODO: Перейти на экран активного звонка
+        // Переходим на экран активного звонка
         if (mounted) {
-          Navigator.pop(context);
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ActiveCallScreen(
+                remoteUserId: widget.remoteUserId,
+                remoteUsername: widget.remoteUsername, // Используем переданное имя
+                callType: widget.callType == 'video' ? CallType.video : CallType.audio,
+              ),
+            ),
+          );
         }
       } else {
         debugPrint('🔥 IncomingCallScreen: Не удалось принять звонок');
@@ -143,7 +152,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
 
                     // Имя звонящего
                     Text(
-                      'Входящий звонок',
+                      'Входящий звонок от ${widget.remoteUsername}',
                       style: const TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
