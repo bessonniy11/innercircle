@@ -119,6 +119,48 @@ import { JwtService } from '@nestjs/jwt';
             this.logger.error(`Ошибка отключения: ${error.message}`);
         }
     }
+
+    /**
+     * Обработка инициации звонка
+     * 
+     * @param data - Данные для инициации звонка
+     * @param client - WebSocket клиент
+     * @since 2.0.0
+     * @author ИИ-Ассистент + Bessonniy
+     */
+    @SubscribeMessage('initiate_call')
+    async handleInitiateCall(
+      @MessageBody() data: { remoteUserId: string; callType: string; sdp: string; type: string },
+      @ConnectedSocket() client: Socket
+    ) {
+      try {
+        const user = client.data.user;
+        const { remoteUserId, callType, sdp, type } = data;
+        
+        this.logger.log(`Пользователь ${user.id} инициирует звонок к ${remoteUserId}`);
+        
+        // Отправляем уведомление о входящем звонке получателю
+        const receiverSocket = this.userSockets.get(remoteUserId);
+        if (receiverSocket) {
+          await receiverSocket.emit('incoming_call', {
+            callId: `call_${Date.now()}_${user.id}`, // Генерируем временный ID
+            remoteUserId: user.id,
+            callType: callType,
+            sdp: sdp,
+            type: type,
+            timestamp: new Date().toISOString()
+          });
+          
+          this.logger.log(`Уведомление о входящем звонке отправлено пользователю ${remoteUserId}`);
+        } else {
+          this.logger.warn(`Пользователь ${remoteUserId} не подключен к WebSocket`);
+          await client.emit('error', { message: 'Пользователь не в сети' });
+        }
+      } catch (error) {
+        this.logger.error(`Ошибка обработки инициации звонка: ${error.message}`);
+        await client.emit('error', { message: 'Ошибка инициации звонка' });
+      }
+    }
   
     /**
      * Уведомление о входящем звонке

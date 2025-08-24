@@ -34,7 +34,8 @@ class _SplashScreenState extends State<SplashScreen> {
 
       if (!mounted) return;
 
-      if (authService.isAuthenticated) {
+      final isAuthenticated = await authService.isAuthenticated;
+      if (isAuthenticated) {
         // Пользователь авторизован, настраиваем клиенты и переходим к чатам
         await _setupAuthenticatedUser(authService);
       } else {
@@ -56,9 +57,13 @@ class _SplashScreenState extends State<SplashScreen> {
       final socketClient = Provider.of<SocketClient>(context, listen: false);
       final callSocketClient = Provider.of<CallSocketClient>(context, listen: false);
 
-      final token = authService.getAccessToken()!;
-      final userId = authService.getUserId()!;
-      final username = authService.getUsername()!;
+      final token = await authService.getAccessToken();
+      final userId = await authService.getUserId();
+      final username = await authService.getUsername();
+
+      if (token == null || userId == null || username == null) {
+        throw Exception('Missing auth data');
+      }
 
       // Настраиваем API клиент
       apiClient.setAuthToken(token);

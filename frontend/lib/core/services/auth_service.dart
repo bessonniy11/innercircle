@@ -14,6 +14,16 @@ class AuthService {
 
   AuthService._();
 
+  /// Синхронный конструктор для Provider
+  AuthService() {
+    _initPrefs();
+  }
+
+  /// Инициализация SharedPreferences
+  Future<void> _initPrefs() async {
+    _prefs ??= await SharedPreferences.getInstance();
+  }
+
   /// Singleton instance
   static Future<AuthService> getInstance() async {
     _instance ??= AuthService._();
@@ -28,6 +38,7 @@ class AuthService {
     required String userId,
     required String username,
   }) async {
+    await _initPrefs();
     await _prefs!.setString(_accessTokenKey, accessToken);
     await _prefs!.setString(_refreshTokenKey, refreshToken);
     await _prefs!.setString(_userIdKey, userId);
@@ -37,18 +48,20 @@ class AuthService {
   }
 
   /// Получить Access Token
-  String? getAccessToken() {
+  Future<String?> getAccessToken() async {
+    await _initPrefs();
     return _prefs!.getString(_accessTokenKey);
   }
 
   /// Получить Refresh Token
-  String? getRefreshToken() {
+  Future<String?> getRefreshToken() async {
+    await _initPrefs();
     return _prefs!.getString(_refreshTokenKey);
   }
 
   /// Проверить, есть ли валидный Access Token
-  bool hasValidAccessToken() {
-    final token = getAccessToken();
+  Future<bool> hasValidAccessToken() async {
+    final token = await getAccessToken();
     if (token == null) {
       debugPrint('🔐 No access token found');
       return false;
@@ -61,7 +74,7 @@ class AuthService {
         return false;
       }
 
-      debugPrint('�� Valid access token found for user: ${getUsername()}');
+      debugPrint('🔐 Valid access token found for user: ${await getUsername()}');
       return true;
     } catch (e) {
       debugPrint('🔐 Invalid access token format: $e');
@@ -69,13 +82,14 @@ class AuthService {
     }
   }
 
-  String? getUsername() {
+  Future<String?> getUsername() async {
+    await _initPrefs();
     return _prefs!.getString(_usernameKey);
   }
 
   /// Проверить, есть ли валидный Refresh Token
-  bool hasValidRefreshToken() {
-    final token = getRefreshToken();
+  Future<bool> hasValidRefreshToken() async {
+    final token = await getRefreshToken();
     if (token == null) {
       debugPrint('🔐 No refresh token found');
       return false;
@@ -97,6 +111,7 @@ class AuthService {
 
   /// Очистить все данные аутентификации
   Future<void> clearAuthData() async {
+    await _initPrefs();
     await _prefs!.remove(_accessTokenKey);
     await _prefs!.remove(_refreshTokenKey);
     await _prefs!.remove(_userIdKey);
@@ -106,32 +121,39 @@ class AuthService {
   }
 
   /// Проверить, авторизован ли пользователь
-  bool get isAuthenticated => hasValidAccessToken() || hasValidRefreshToken();
+  Future<bool> get isAuthenticated async {
+    final hasAccess = await hasValidAccessToken();
+    final hasRefresh = await hasValidRefreshToken();
+    return hasAccess || hasRefresh;
+  }
 
   /// Получить информацию о текущем пользователе
-  Map<String, String?> getCurrentUser() {
+  Future<Map<String, String?>> getCurrentUser() async {
+    await _initPrefs();
     return {
-      'id': getUserId(),
-      'username': getUsername(),
-      'access_token': getAccessToken(),
-      'refresh_token': getRefreshToken(),
+      'id': _prefs!.getString(_userIdKey),
+      'username': _prefs!.getString(_usernameKey),
+      'access_token': _prefs!.getString(_accessTokenKey),
+      'refresh_token': _prefs!.getString(_refreshTokenKey),
     };
   }
 
-  String? getUserId() {
+  Future<String?> getUserId() async {
+    await _initPrefs();
     return _prefs!.getString(_userIdKey);
   }
 
   /// Для отладки - показать текущее состояние
-  void printCurrentState() {
-    final user = getCurrentUser();
+  Future<void> printCurrentState() async {
+    final user = await getCurrentUser();
+    final isAuth = await isAuthenticated;
     debugPrint('🔐 Auth State:');
-    debugPrint('  - Authenticated: $isAuthenticated');
+    debugPrint('  - Authenticated: $isAuth');
     debugPrint('  - Username: ${user['username']}');
     debugPrint('  - User ID: ${user['id']}');
     debugPrint('  - Has Access Token: ${user['access_token'] != null}');
     debugPrint('  - Has Refresh Token: ${user['refresh_token'] != null}');
-    debugPrint('  - Access Token Valid: ${hasValidAccessToken()}');
-    debugPrint('  - Refresh Token Valid: ${hasValidRefreshToken()}');
+    debugPrint('  - Access Token Valid: ${await hasValidAccessToken()}');
+    debugPrint('  - Refresh Token Valid: ${await hasValidRefreshToken()}');
   }
 }

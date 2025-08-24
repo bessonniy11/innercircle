@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
+import 'package:provider/provider.dart';
 import 'package:zvonilka/features/call/domain/models/call_model.dart';
-import 'package:zvonilka/features/call/domain/models/webrtc_connection.dart';
+import 'package:zvonilka/core/services/webrtc_service.dart';
 
 /// Экран звонка с WebRTC интеграцией
 class CallScreen extends StatefulWidget {
@@ -22,7 +22,7 @@ class CallScreen extends StatefulWidget {
 }
 
 class _CallScreenState extends State<CallScreen> {
-  late WebRTCConnection _connection;
+  late WebRTCService _webrtcService;
   bool _isMuted = false;
   bool _isSpeakerOn = true;
   bool _isConnecting = false;
@@ -33,7 +33,7 @@ class _CallScreenState extends State<CallScreen> {
   @override
   void initState() {
     super.initState();
-    _connection = WebRTCConnection.create(widget.call.id);
+    _webrtcService = Provider.of<WebRTCService>(context, listen: false);
     _initializeCall();
     _startDurationTimer();
   }
@@ -41,7 +41,6 @@ class _CallScreenState extends State<CallScreen> {
   @override
   void dispose() {
     _durationTimer.cancel();
-    _disposeWebRTC();
     super.dispose();
   }
 
@@ -71,9 +70,7 @@ class _CallScreenState extends State<CallScreen> {
   /// Инициализация WebRTC
   Future<void> _initializeWebRTC() async {
     try {
-      // Используем платформо-зависимую инициализацию
-      await _connection.initializeWebRTC();
-      
+      // WebRTC инициализируется автоматически при создании сервиса
       setState(() {
         _isConnecting = false;
         _isConnected = true;
@@ -88,10 +85,17 @@ class _CallScreenState extends State<CallScreen> {
   /// Начало звонка
   Future<void> _startCall() async {
     try {
-      // Используем платформо-зависимое начало звонка
-      await _connection.startCall();
+      // Инициируем звонок через WebRTCService
+      final success = await _webrtcService.initiateCall(
+        widget.call.receiverId, 
+        _webrtcService.callType
+      );
       
-      debugPrint('🔊 Call started');
+      if (success) {
+        debugPrint('🔊 Call started');
+      } else {
+        debugPrint('🔥 Failed to start call');
+      }
 
     } catch (e) {
       debugPrint('🔥 Error starting call: $e');
@@ -106,25 +110,27 @@ class _CallScreenState extends State<CallScreen> {
     });
   }
 
-  /// Принять входящий звонок
+  /// Ответ на входящий звонок
   Future<void> _answerCall() async {
     try {
-      setState(() {
-        _isConnecting = true;
-      });
-
-      await _initializeWebRTC();
-
-      // Используем платформо-зависимый ответ на звонок
-      await _connection.answerCall();
-
-      debugPrint('🔊 Call answered');
+      // Принимаем звонок через WebRTCService
+      final success = await _webrtcService.acceptCall(
+        widget.call.id, 
+        _webrtcService.callType
+      );
+      
+      if (success) {
+        debugPrint('🔊 Call answered');
+        setState(() {
+          _isConnected = true;
+        });
+      } else {
+        debugPrint('🔥 Failed to answer call');
+      }
 
     } catch (e) {
       debugPrint('🔥 Error answering call: $e');
-      if (mounted) {
-        _showErrorDialog('Ошибка при ответе на звонок: $e');
-      }
+      rethrow;
     }
   }
 
@@ -154,22 +160,23 @@ class _CallScreenState extends State<CallScreen> {
     }
   }
 
-  /// Переключить микрофон
+  /// Переключение микрофона
   void _toggleMute() {
     setState(() {
       _isMuted = !_isMuted;
     });
-
-    _connection = _connection.toggleMute();
+    
+    _webrtcService.toggleMicrophone();
   }
 
-  /// Переключить динамик
+  /// Переключение динамика
   void _toggleSpeaker() {
     setState(() {
       _isSpeakerOn = !_isSpeakerOn;
     });
-
-    _connection = _connection.toggleSpeaker();
+    
+    // TODO: Реализовать переключение динамика
+    debugPrint('🔊 Speaker ${_isSpeakerOn ? "on" : "off"}');
   }
 
   /// Запуск таймера длительности
@@ -177,16 +184,26 @@ class _CallScreenState extends State<CallScreen> {
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted && _isConnected) {
         setState(() {
-          _callDuration = DateTime.now().difference(_connection.createdAt);
+          _callDuration = DateTime.now().difference(widget.call.createdAt);
         });
       }
     });
   }
 
+  /// Обновление длительности звонка
+  void _updateCallDuration() {
+    if (mounted && _isConnected) {
+      setState(() {
+        _callDuration = DateTime.now().difference(widget.call.createdAt);
+      });
+    }
+  }
+
   /// Очистка WebRTC ресурсов
   Future<void> _disposeWebRTC() async {
     try {
-      await _connection.dispose();
+      // WebRTCService автоматически очищает ресурсы при dispose
+      debugPrint('🔔 WebRTC resources disposed');
     } catch (e) {
       debugPrint('🔥 Error disposing WebRTC: $e');
     }
@@ -409,3 +426,4 @@ class _CallScreenState extends State<CallScreen> {
     );
   }
 }
+

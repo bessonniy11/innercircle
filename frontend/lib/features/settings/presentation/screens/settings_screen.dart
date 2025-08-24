@@ -40,7 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _initializeData() async {
     try {
       _authService = await AuthService.getInstance();
-      _tokenData = _authService.getCurrentUser();
+      _tokenData = await _authService.getCurrentUser();
       setState(() {
         _isLoading = false;
       });

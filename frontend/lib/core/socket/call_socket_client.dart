@@ -215,4 +215,24 @@ class CallSocketClient {
     _token = null;
     debugPrint('🔔 CallSocket: Токен очищен');
   }
+
+  /// Подписка на события (для WebRTC сервиса)
+  void on(String event, Function(dynamic) handler) {
+    if (_socket != null) {
+      _socket!.on(event, handler);
+      debugPrint('🔔 CallSocket: Подписка на событие: $event');
+    } else {
+      debugPrint('🔥 CallSocket: Не удалось подписаться на $event - socket == null');
+    }
+  }
+
+  /// Отправка событий (для WebRTC сервиса)
+  void emit(String event, [dynamic data]) {
+    if (_isConnected && _socket != null) {
+      _socket!.emit(event, data);
+      debugPrint('🔔 CallSocket: Отправлено событие: $event с данными: $data');
+    } else {
+      debugPrint('🔥 CallSocket: Не удалось отправить $event - не подключен');
+    }
+  }
 }
