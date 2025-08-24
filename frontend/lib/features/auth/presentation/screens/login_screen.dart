@@ -38,6 +38,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final response = await apiClient.dio.post('/auth/login', data: {'username': username, 'password': password});
       final String accessToken = response.data['access_token'];
+      final String refreshToken = response.data['refresh_token'];
       
       // Decode JWT to get user data
       final Map<String, dynamic> decodedToken = apiClient.decodeJwtToken(accessToken);
@@ -46,7 +47,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // ✅ Сохраняем данные аутентификации для persistent login
       await authService.saveAuthData(
-        token: accessToken,
+        accessToken: accessToken,
+        refreshToken: refreshToken,
         userId: currentUserId,
         username: currentUsername,
       );

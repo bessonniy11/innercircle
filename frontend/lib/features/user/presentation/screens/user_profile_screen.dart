@@ -32,7 +32,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Future<void> _initializeData() async {
     try {
       _authService = await AuthService.getInstance();
-      _tokenData = _authService.getTokenData();
+      _tokenData = _authService.getCurrentUser();
       setState(() {
         _isLoading = false;
       });

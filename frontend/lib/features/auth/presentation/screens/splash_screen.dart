@@ -54,7 +54,7 @@ class _SplashScreenState extends State<SplashScreen> {
       final apiClient = Provider.of<ApiClient>(context, listen: false);
       final socketClient = Provider.of<SocketClient>(context, listen: false);
 
-      final token = authService.getToken()!;
+      final token = authService.getAccessToken()!;
       final userId = authService.getUserId()!;
       final username = authService.getUsername()!;
 
