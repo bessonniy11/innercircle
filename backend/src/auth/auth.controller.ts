@@ -1,4 +1,4 @@
-import { Controller, Request, Post, UseGuards, Body, HttpStatus, HttpCode } from '@nestjs/common';
+import { Controller, Request, Post, UseGuards, Body, HttpStatus, HttpCode, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { LoginUserDto } from './dto/login-user.dto';
@@ -51,11 +51,99 @@ export class AuthController {
       }
     }
   })
+  @ApiResponse({
+    status: 401,
+    description: 'Неверный токен обновления',
+    schema: {
+      example: {
+        statusCode: 401,
+        message: 'Invalid refresh token'
+      }
+    }
+  })
   @UseGuards(AuthGuard('local'))
   @Post('login')
+  @ApiBody({ type: LoginUserDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Успешный вход',
+    schema: {
+      type: 'object',
+      properties: {
+        access_token: { type: 'string' },
+        refresh_token: { type: 'string' },
+        expires_in: { type: 'number' },
+        refresh_expires_in: { type: 'number' },
+        user: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            username: { type: 'string' }
+          }
+        }
+      }
+    }
+  })
+  async login(@Body() loginUserDto: LoginUserDto) {
+    const user = await this.authService.validateUser(
+      loginUserDto.username,
+      loginUserDto.password
+    );
+    
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    
+    return this.authService.login(user);
+  }
+
+  @Post('refresh')
+  @ApiOperation({ summary: 'Обновление Access Token' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        refresh_token: { type: 'string' }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Token обновлен',
+    schema: {
+      type: 'object',
+      properties: {
+        access_token: { type: 'string' },
+        expires_in: { type: 'number' },
+        user: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            username: { type: 'string' }
+          }
+        }
+      }
+    }
+  })
+  async refresh(@Body() body: { refresh_token: string }) {
+    return this.authService.refreshToken(body.refresh_token);
+  }
+
+  @Post('logout')
+  @UseGuards(AuthGuard('jwt'))
   @HttpCode(HttpStatus.OK)
-  @UsePipes(ValidationPipe)
-  async login(@Request() req, @Body() loginUserDto: LoginUserDto) {
-    return this.authService.login(req.user);
+  @ApiOperation({ summary: 'Выход пользователя' })
+  @ApiResponse({
+    status: 200,
+    description: 'Успешный выход',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string' }
+      }
+    }
+  })
+  async logout(@Request() req: any) {
+    return this.authService.logout(req.user.id);
   }
 }

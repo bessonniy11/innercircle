@@ -26,6 +26,23 @@ export class User {
   })
   invitationCode?: string;
 
+  // ДЕЛАЕМ ПОЛЯ ОПЦИОНАЛЬНЫМИ И НУЛЛАБЕЛЬНЫМИ
+  @Column({
+    name: 'refreshToken',
+    nullable: true,
+    type: 'text',
+    default: null
+  })
+  refreshToken?: string | null;
+
+  @Column({
+    name: 'refreshTokenExpiresAt',
+    nullable: true,
+    type: 'timestamp',
+    default: null
+  })
+  refreshTokenExpiresAt?: Date | null;
+
   @OneToMany(() => Message, message => message.sender)
   messages: Message[];
 

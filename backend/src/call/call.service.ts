@@ -1,6 +1,8 @@
+// backend/src/call/call.service.ts
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Call, CallStatus, CallType } from './entities/call.entity';
 import { InitiateCallDto } from './dto/initiate-call.dto';
 import { CallResponseDto } from './dto/call-response.dto';
@@ -13,9 +15,10 @@ import { CallResponseDto } from './dto/call-response.dto';
  * - Управления статусами звонков
  * - Получения истории звонков
  * - Валидации прав доступа
+ * - Эмиссии событий для WebSocket уведомлений
  * 
  * В MVP версии поддерживаются только голосовые звонки.
- * WebRTC сигналинг происходит через WebSocket Gateway.
+ * WebRTC сигналинг происходит через CallGateway.
  * 
  * @since 2.0.0
  * @author ИИ-Ассистент + Bessonniy
@@ -25,6 +28,7 @@ export class CallService {
   constructor(
     @InjectRepository(Call)
     private readonly callRepository: Repository<Call>,
+    private readonly eventEmitter: EventEmitter2 // НОВОЕ - Event Emitter вместо CallGateway
   ) {}
 
   /**
@@ -64,7 +68,15 @@ export class CallService {
       updatedAt: new Date(),
     });
 
-    return await this.callRepository.save(call);
+    const savedCall = await this.callRepository.save(call);
+
+    // НОВОЕ: Сразу переводим в статус RINGING
+    const ringingCall = await this.updateCallStatus(savedCall.id, CallStatus.RINGING, callerId);
+    
+    // НОВОЕ: Эмитим событие вместо прямого вызова Gateway
+    this.eventEmitter.emit('call.created', ringingCall);
+    
+    return ringingCall; // Возвращаем звонок в статусе RINGING
   }
 
   /**
@@ -117,7 +129,12 @@ export class CallService {
       }
     }
 
-    return await this.callRepository.save(call);
+    const updatedCall = await this.callRepository.save(call);
+    
+    // НОВОЕ: Эмитим событие об изменении статуса
+    this.eventEmitter.emit('call.status.changed', { call: updatedCall, status });
+    
+    return updatedCall;
   }
 
   /**
@@ -208,24 +225,24 @@ export class CallService {
 
     // Проверяем, что пользователь является получателем звонка
     if (call.receiverId !== userId) {
-      throw new ForbiddenException('Только получатель может отвечать на звонок');
+        throw new ForbiddenException('Только получатель может отвечать на звонок');
     }
 
-    // Проверяем, что звонок в статусе RINGING
-    if (call.status !== CallStatus.RINGING) {
-      throw new BadRequestException('Звонок не в статусе ожидания ответа');
+    // ИСПРАВЛЯЕМ: Проверяем статус RINGING или INITIATING
+    if (![CallStatus.RINGING, CallStatus.INITIATING].includes(call.status)) {
+        throw new BadRequestException(`Звонок не в статусе ожидания ответа. Текущий статус: ${call.status}`);
     }
 
     // Обновляем статус в зависимости от действия
     let newStatus: CallStatus;
     if (action === 'accept') {
-      newStatus = CallStatus.ANSWERED;
+        newStatus = CallStatus.ANSWERED;
     } else if (action === 'reject') {
-      newStatus = CallStatus.REJECTED;
+        newStatus = CallStatus.REJECTED;
     } else {
-      throw new BadRequestException('Неизвестное действие');
+        throw new BadRequestException('Неизвестное действие');
     }
-
+    
     return await this.updateCallStatus(callId, newStatus, userId);
   }
 
@@ -245,25 +262,30 @@ export class CallService {
    * @since 2.0.0
    * @author ИИ-Ассистент + Bessonniy
    */
-    async endCall(callId: string, userId: string): Promise<Call> {
-        const call = await this.getCallById(callId, userId);
-        
-        // ИСПРАВЛЯЕМ: Разрешаем завершать звонки в разных статусах
-        if (![CallStatus.INITIATING, CallStatus.RINGING, CallStatus.ANSWERED].includes(call.status)) {
-            throw new BadRequestException('Звонок уже завершен или не может быть завершен');
-        }
-        
-        // Обновляем статус и время завершения
-        call.status = CallStatus.ENDED;
-        call.endedAt = new Date();
-        
-        // Вычисляем длительность если звонок был активен
-        if (call.startedAt) {
-            call.duration = Math.floor((call.endedAt.getTime() - call.startedAt.getTime()) / 1000);
-        }
-        
-        return await this.callRepository.save(call);
+  async endCall(callId: string, userId: string): Promise<Call> {
+    const call = await this.getCallById(callId, userId);
+    
+    // ИСПРАВЛЯЕМ: Разрешаем завершать звонки в разных статусах
+    if (![CallStatus.INITIATING, CallStatus.RINGING, CallStatus.ANSWERED].includes(call.status)) {
+      throw new BadRequestException('Звонок уже завершен или не может быть завершен');
     }
+    
+    // Обновляем статус и время завершения
+    call.status = CallStatus.ENDED;
+    call.endedAt = new Date();
+    
+    // Вычисляем длительность если звонок был активен
+    if (call.startedAt) {
+      call.duration = Math.floor((call.endedAt.getTime() - call.startedAt.getTime()) / 1000);
+    }
+    
+    const endedCall = await this.callRepository.save(call);
+    
+    // НОВОЕ: Эмитим событие о завершении звонка
+    this.eventEmitter.emit('call.ended', endedCall);
+    
+    return endedCall;
+  }
 
   /**
    * Получает активные звонки пользователя
@@ -286,5 +308,44 @@ export class CallService {
       ],
       relations: ['caller', 'receiver'],
     });
+  }
+
+  /**
+   * НОВОЕ: Изменяет статус звонка на RINGING (для WebSocket уведомлений)
+   * 
+   * @param callId - ID звонка
+   * @param userId - ID пользователя, который изменяет статус
+   * @returns Promise<Call> - Обновленный звонок
+   * @since 2.0.0
+   * @author ИИ-Ассистент + Bessonniy
+   */
+  async setCallRinging(callId: string, userId: string): Promise<Call> {
+    return await this.updateCallStatus(callId, CallStatus.RINGING, userId);
+  }
+
+  /**
+   * НОВОЕ: Принимает звонок (изменяет статус на ANSWERED)
+   * 
+   * @param callId - ID звонка
+   * @param userId - ID пользователя, который принимает
+   * @returns Promise<Call> - Обновленный звонок
+   * @since 2.0.0
+   * @author ИИ-Ассистент + Bessonniy
+   */
+  async acceptCall(callId: string, userId: string): Promise<Call> {
+    return await this.updateCallStatus(callId, CallStatus.ANSWERED, userId);
+  }
+
+  /**
+   * НОВОЕ: Отклоняет звонок (изменяет статус на REJECTED)
+   * 
+   * @param callId - ID звонка
+   * @param userId - ID пользователя, который отклоняет
+   * @returns Promise<Call> - Обновленный звонок
+   * @since 2.0.0
+   * @author ИИ-Ассистент + Bessonniy
+   */
+  async rejectCall(callId: string, userId: string): Promise<Call> {
+    return await this.updateCallStatus(callId, CallStatus.REJECTED, userId);
   }
 }

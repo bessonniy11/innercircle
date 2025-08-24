@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Тест WebSocket Звонков</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Тест WebSocket Звонков</h1>
+    <div id="status">Статус: Отключен</div>
+    <div id="logs"></div>
+
+    <script>
+        const socket = io('http://localhost:3000/calls', {
+            auth: {
+                token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6IlVzZXI0Iiwic3ViIjoiMWFjZTYzOGEtNjIwZS00YWI3LWJhNTMtY2YyY2RjNTQzMmEwIiwiaWF0IjoxNzU2MDMwMzk1LCJleHAiOjE3NTYwMzM5OTV9.kOkr_zfKMHloiJxAObnKlrfW0s77qpC_Sl2auYYW8L0'
+            }
+        });
+
+        socket.on('connect', () => {
+            document.getElementById('status').textContent = 'Статус: Подключен ✅';
+            console.log('✅ User4 подключился к WebSocket звонков');
+        });
+
+        socket.on('incoming_call', (data) => {
+            console.log(' Входящий звонок для User4:', data);
+            document.getElementById('logs').innerHTML += `<p> Входящий звонок: ${JSON.stringify(data)}</p>`;
+        });
+
+        socket.on('call_status_changed', (data) => {
+            console.log('🔄 Статус звонка изменился:', data);
+            document.getElementById('logs').innerHTML += `<p>🔄 Статус изменился: ${JSON.stringify(data)}</p>`;
+        });
+
+        socket.on('disconnect', () => {
+            document.getElementById('status').textContent = 'Статус: Отключен ❌';
+            console.log('❌ User4 отключился от WebSocket');
+        });
+    </script>
+</body>
+</html>

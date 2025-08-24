@@ -17,8 +17,11 @@ export class WsJwtAuthGuard implements CanActivate {
       }
 
       const payload = await this.jwtService.verifyAsync(token);
-      client.data.userId = payload.sub;
-      client.data.username = payload.username;
+      // ИСПРАВЛЯЕМ: Устанавливаем правильную структуру
+      client.data.user = {
+        id: payload.sub,
+        username: payload.username
+      };
       
       return true;
     } catch (err) {
