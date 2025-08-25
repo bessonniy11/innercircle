@@ -447,19 +447,19 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
                   value: 'profile',
                   child: Row(
                     children: [
-                      const Icon(Icons.person, size: 20),
+                      const Icon(Icons.person, size: 20, color: Colors.blue),
                       const SizedBox(width: 12),
-                      Text(widget.currentUsername),
+                      Text(widget.currentUsername, style: const TextStyle(color: Colors.black87)),
                     ],
                   ),
                 ),
-                const PopupMenuItem<String>(
+                PopupMenuItem<String>(
                   value: 'settings',
                   child: Row(
                     children: [
-                      Icon(Icons.settings, size: 20),
-                      SizedBox(width: 12),
-                      Text('Настройки'),
+                      Icon(Icons.settings, size: 20, color: Colors.grey[700]),
+                      const SizedBox(width: 12),
+                      Text('Настройки', style: const TextStyle(color: Colors.black87)),
                     ],
                   ),
                 ),
