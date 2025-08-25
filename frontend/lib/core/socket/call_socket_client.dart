@@ -1,5 +1,6 @@
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:flutter/foundation.dart';
+import 'package:zvonilka/core/config/api_config.dart';
 
 /// WebSocket клиент для WebRTC сигналинга звонков
 /// Подключается к отдельному namespace /calls
@@ -10,7 +11,10 @@ class CallSocketClient {
 
   /// Подключение к namespace звонков
   void connect(String token) {
-    debugPrint('🔔 CallSocket: Попытка подключения к namespace /calls с токеном: ${token.substring(0, 10)}...');
+    final backendUrl = ApiConfig.currentBackendUrl;
+    debugPrint('🔔 CallSocket: Попытка подключения к namespace /calls');
+    debugPrint('🔔 CallSocket: Backend URL: $backendUrl');
+    debugPrint('🔔 CallSocket: Токен: ${token.substring(0, 10)}...');
     
     if (_isConnected) {
       debugPrint('🔔 CallSocket: Уже подключен к namespace /calls');
@@ -25,9 +29,10 @@ class CallSocketClient {
     _token = token;
     
     try {
-      debugPrint('🔔 CallSocket: Создаю Socket.IO соединение к http://localhost:3000/calls');
+      final backendUrl = ApiConfig.currentBackendUrl;
+      debugPrint('🔔 CallSocket: Создаю Socket.IO соединение к $backendUrl/calls');
       
-      _socket = IO.io('http://localhost:3000/calls', <String, dynamic>{
+      _socket = IO.io('$backendUrl/calls', <String, dynamic>{
         'transports': ['websocket'],
         'autoConnect': true,
         'auth': {
