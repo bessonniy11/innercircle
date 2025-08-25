@@ -412,18 +412,6 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
           PopupMenuButton<String>(
             onSelected: (String value) {
               switch (value) {
-                case 'profile':
-                  // Переход к экрану настроек (который включает профиль)
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SettingsScreen(
-                        currentUserId: widget.currentUserId,
-                        currentUsername: widget.currentUsername,
-                      ),
-                    ),
-                  );
-                  break;
                 case 'settings':
                   // Переход к экрану настроек
                   Navigator.push(
