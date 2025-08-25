@@ -85,9 +85,44 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       debugPrint('🔥 Login error: $e');
+      // Получаем детали для отображения в SnackBar
+      final apiClient = Provider.of<ApiClient>(context, listen: false);
+      final baseUrl = apiClient.dio.options.baseUrl;
+      final fullUrl = '$baseUrl/auth/login';
+      
+      // Формируем подробное сообщение об ошибке
+      String errorMessage = 'Ошибка входа:\n';
+      errorMessage += 'URL: $fullUrl\n';
+      errorMessage += 'Username: $username\n';
+      
+      // Добавляем детали ошибки
+      if (e.toString().contains('SocketException')) {
+        errorMessage += 'Ошибка: Проблема с сетью\n';
+        errorMessage += 'Проверьте подключение к интернету';
+      } else if (e.toString().contains('DioException')) {
+        errorMessage += 'Ошибка: Проблема с HTTP запросом\n';
+        errorMessage += 'Детали: ${e.toString()}';
+      } else {
+        errorMessage += 'Ошибка: ${e.toString()}';
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ошибка входа. Проверьте данные и подключение к серверу.')),
+          SnackBar(
+            content: Text(
+              errorMessage,
+              style: const TextStyle(fontSize: 12),
+            ),
+            duration: const Duration(seconds: 10), // Увеличиваем время показа
+            backgroundColor: Colors.red,
+            action: SnackBarAction(
+              label: 'Скрыть',
+              textColor: Colors.white,
+              onPressed: () {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              },
+            ),
+          ),
         );
       }
     }
