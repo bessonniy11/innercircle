@@ -9,6 +9,7 @@ import 'package:zvonilka/core/socket/socket_client.dart';
 import 'package:zvonilka/core/services/webrtc_service.dart' as webrtc;
 import 'package:zvonilka/core/socket/call_socket_client.dart';
 import 'package:zvonilka/features/call/presentation/screens/active_call_screen.dart';
+import 'package:zvonilka/core/services/call_notification_service.dart';
 
 /**
  * Экран списка пользователей.
@@ -40,6 +41,18 @@ class _UserListScreenState extends State<UserListScreen> {
   void initState() {
     super.initState();
     _usersFuture = _fetchUsers();
+    
+    // Регистрируем контекст в CallNotificationService
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      CallNotificationService().addContext('UserListScreen', context);
+    });
+  }
+
+  @override
+  void dispose() {
+    // Удаляем контекст из CallNotificationService
+    CallNotificationService().removeContext('UserListScreen');
+    super.dispose();
   }
 
   /**
@@ -166,7 +179,7 @@ class _UserListScreenState extends State<UserListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Участники Семьи'),
+        title: const Text('Контакты'),
       ),
       body: FutureBuilder<List<UserPublicDto>>(
         future: _usersFuture,

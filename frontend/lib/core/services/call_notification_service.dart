@@ -9,10 +9,23 @@ class CallNotificationService {
   CallNotificationService._internal();
 
   BuildContext? _context;
+  final Map<String, BuildContext> _contexts = {};
 
   /// Установка контекста для навигации
   void setContext(BuildContext context) {
     _context = context;
+  }
+
+  /// Добавить контекст для конкретного экрана
+  void addContext(String screenId, BuildContext context) {
+    _contexts[screenId] = context;
+    debugPrint('🔔 CallNotificationService: Добавлен контекст для экрана: $screenId');
+  }
+
+  /// Удалить контекст для конкретного экрана
+  void removeContext(String screenId) {
+    _contexts.remove(screenId);
+    debugPrint('🔔 CallNotificationService: Удален контекст для экрана: $screenId');
   }
 
   /// Показать экран входящего звонка
@@ -32,21 +45,34 @@ class CallNotificationService {
       return;
     }
 
-    if (_context != null && _context!.mounted) {
+    // Пытаемся найти активный контекст
+    BuildContext? activeContext = _context;
+    
+    // Если основной контекст недействителен, ищем в сохраненных
+    if (activeContext == null || !activeContext.mounted) {
+      for (final context in _contexts.values) {
+        if (context.mounted) {
+          activeContext = context;
+          break;
+        }
+      }
+    }
+
+    if (activeContext != null && activeContext!.mounted) {
       debugPrint('🔔 CallNotificationService: Навигация к IncomingCallScreen');
-              Navigator.of(_context!).push(
-          MaterialPageRoute(
-            builder: (context) => IncomingCallScreen(
-              callId: callId,
-              remoteUserId: remoteUserId,
-              callType: callType,
-              remoteUsername: remoteUsername ?? 'Unknown User',
-            ),
+      Navigator.of(activeContext!).push(
+        MaterialPageRoute(
+          builder: (context) => IncomingCallScreen(
+            callId: callId,
+            remoteUserId: remoteUserId,
+            callType: callType,
+            remoteUsername: remoteUsername ?? 'Unknown User',
           ),
-        );
+        ),
+      );
       debugPrint('🔔 CallNotificationService: IncomingCallScreen показан');
     } else {
-      debugPrint('⚠️ CallNotificationService: Контекст не установлен или не mounted');
+      debugPrint('⚠️ CallNotificationService: Нет активного контекста для навигации');
     }
   }
 

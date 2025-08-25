@@ -53,7 +53,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
         debugPrint('🔔 IncomingCallScreen: Звонок принят успешно');
         // Переходим на экран активного звонка
         if (mounted) {
-          Navigator.pushReplacement(
+          Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => ActiveCallScreen(
@@ -103,7 +103,8 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
       _webrtcService.rejectCall(widget.callId);
 
       if (mounted) {
-        Navigator.pop(context);
+        // Возвращаемся к предыдущему экрану
+        Navigator.of(context).pop();
       }
     } catch (e) {
       debugPrint('🔥 IncomingCallScreen: Ошибка отклонения звонка: $e');

@@ -204,10 +204,41 @@ class WebRTCService extends ChangeNotifier {
   void endCall() {
     debugPrint('🔔 WebRTC: Завершение звонка');
     
+    // Отправляем событие завершения через сокет
     if (_currentCallId != null) {
       _callSocketClient.emit('end_call', {
         'callId': _currentCallId,
       });
+      debugPrint('🔔 WebRTC: Событие end_call отправлено для callId: $_currentCallId');
+    } else if (_remoteUserId != null) {
+      // Если нет callId, но есть remoteUserId, генерируем временный ID
+      final tempCallId = 'temp_${DateTime.now().millisecondsSinceEpoch}_${_remoteUserId}';
+      _callSocketClient.emit('end_call', {
+        'callId': tempCallId,
+      });
+      debugPrint('🔔 WebRTC: Событие end_call отправлено с временным ID: $tempCallId');
+    } else {
+      debugPrint('⚠️ WebRTC: Не удалось отправить событие end_call - нет callId или remoteUserId');
+    }
+    
+    // Принудительно закрываем WebRTC соединение
+    if (_peerConnection != null) {
+      try {
+        _peerConnection!.close();
+        debugPrint('🔔 WebRTC: Peer connection закрыт при завершении');
+      } catch (e) {
+        debugPrint('⚠️ WebRTC: Ошибка при закрытии peer connection: $e');
+      }
+    }
+    
+    // Останавливаем все медиа потоки
+    if (_localStream != null) {
+      try {
+        _localStream!.getTracks().forEach((track) => track.stop());
+        debugPrint('🔔 WebRTC: Локальные треки остановлены при завершении');
+      } catch (e) {
+        debugPrint('⚠️ WebRTC: Ошибка при остановке локальных треков: $e');
+      }
     }
     
     _resetCall();
@@ -411,6 +442,27 @@ class WebRTCService extends ChangeNotifier {
       // Проверяем, что это наш звонок (либо как звонящий, либо как принимающий)
       if (_currentCallId == callId || _remoteUserId != null) {
         debugPrint('🔔 WebRTC: Звонок отклонен удаленным пользователем');
+        
+        // Принудительно закрываем WebRTC соединение
+        if (_peerConnection != null) {
+          try {
+            await _peerConnection!.close();
+            debugPrint('🔔 WebRTC: Peer connection закрыт при отклонении');
+          } catch (e) {
+            debugPrint('⚠️ WebRTC: Ошибка при закрытии peer connection: $e');
+          }
+        }
+        
+        // Останавливаем все медиа потоки
+        if (_localStream != null) {
+          try {
+            _localStream!.getTracks().forEach((track) => track.stop());
+            debugPrint('🔔 WebRTC: Локальные треки остановлены при отклонении');
+          } catch (e) {
+            debugPrint('⚠️ WebRTC: Ошибка при остановке локальных треков: $e');
+          }
+        }
+        
         _resetCall();
       } else {
         debugPrint('⚠️ WebRTC: Отклонение звонка не относится к текущему звонку');
@@ -433,6 +485,36 @@ class WebRTCService extends ChangeNotifier {
       // Проверяем, что это наш звонок (либо как звонящий, либо как принимающий)
       if (_currentCallId == callId || _remoteUserId != null) {
         debugPrint('🔔 WebRTC: Звонок завершен удаленным пользователем');
+        
+        // Принудительно закрываем WebRTC соединение
+        if (_peerConnection != null) {
+          try {
+            await _peerConnection!.close();
+            debugPrint('🔔 WebRTC: Peer connection закрыт');
+          } catch (e) {
+            debugPrint('⚠️ WebRTC: Ошибка при закрытии peer connection: $e');
+          }
+        }
+        
+        // Останавливаем все медиа потоки
+        if (_localStream != null) {
+          try {
+            _localStream!.getTracks().forEach((track) => track.stop());
+            debugPrint('🔔 WebRTC: Локальные треки остановлены');
+          } catch (e) {
+            debugPrint('⚠️ WebRTC: Ошибка при остановке локальных треков: $e');
+          }
+        }
+        
+        if (_remoteStream != null) {
+          try {
+            _remoteStream!.getTracks().forEach((track) => track.stop());
+            debugPrint('🔔 WebRTC: Удаленные треки остановлены');
+          } catch (e) {
+            debugPrint('⚠️ WebRTC: Ошибка при остановке удаленных треков: $e');
+          }
+        }
+        
         _resetCall();
       } else {
         debugPrint('⚠️ WebRTC: Завершение звонка не относится к текущему звонку');
@@ -523,21 +605,55 @@ class WebRTCService extends ChangeNotifier {
 
   // Сброс состояния звонка
   void _resetCall() {
+    debugPrint('🔔 WebRTC: Сброс состояния звонка');
+    
+    // Останавливаем таймеры
     _stopCallTimer();
     _iceGatheringTimer?.cancel();
     
-    _localStream?.dispose();
-    _remoteStream?.dispose();
-    _peerConnection?.dispose();
+    // Принудительно закрываем peer connection
+    if (_peerConnection != null) {
+      try {
+        _peerConnection!.close();
+        debugPrint('🔔 WebRTC: Peer connection закрыт при сбросе');
+      } catch (e) {
+        debugPrint('⚠️ WebRTC: Ошибка при закрытии peer connection: $e');
+      }
+    }
     
+    // Останавливаем и освобождаем медиа потоки
+    if (_localStream != null) {
+      try {
+        _localStream!.getTracks().forEach((track) => track.stop());
+        debugPrint('🔔 WebRTC: Локальные треки остановлены при сбросе');
+      } catch (e) {
+        debugPrint('⚠️ WebRTC: Ошибка при остановке локальных треков: $e');
+      }
+      _localStream!.dispose();
+    }
+    
+    if (_remoteStream != null) {
+      try {
+        _remoteStream!.getTracks().forEach((track) => track.stop());
+        debugPrint('🔔 WebRTC: Удаленные треки остановлены при сбросе');
+      } catch (e) {
+        debugPrint('⚠️ WebRTC: Ошибка при остановке удаленных треков: $e');
+      }
+      _remoteStream!.dispose();
+    }
+    
+    // Освобождаем объекты
+    _peerConnection = null;
     _localStream = null;
     _remoteStream = null;
-    _peerConnection = null;
     _currentCallId = null;
     _remoteUserId = null;
-    _remoteUsername = null; // Сбрасываем имя удаленного пользователя
+    _remoteUsername = null;
     
+    // Устанавливаем состояние idle
     _setCallState(CallState.idle);
+    
+    debugPrint('🔔 WebRTC: Состояние звонка сброшено');
   }
 
   // Установка состояния звонка

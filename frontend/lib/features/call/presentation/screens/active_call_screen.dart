@@ -52,6 +52,8 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   /// Обработчик изменения состояния звонка
   void _onCallStateChanged() {
     if (mounted) {
+      debugPrint('🔔 ActiveCallScreen: Состояние звонка изменилось на: ${_webrtcService.callState.name}');
+      
       if (_webrtcService.callState == webrtc.CallState.connected) {
         // Звонок подключен - запускаем таймер
         if (_durationTimer == null) {
@@ -59,12 +61,14 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
           _startDurationTimer();
         }
       } else if (_webrtcService.callState == webrtc.CallState.ended || 
-                 _webrtcService.callState == webrtc.CallState.error) {
+                 _webrtcService.callState == webrtc.CallState.error ||
+                 _webrtcService.callState == webrtc.CallState.idle) {
         // Звонок завершен - останавливаем таймер и закрываем экран
-        debugPrint('🔔 ActiveCallScreen: Звонок завершен, закрываем экран');
+        debugPrint('🔔 ActiveCallScreen: Звонок завершен (статус: ${_webrtcService.callState.name}), закрываем экран');
         _durationTimer?.cancel();
         if (mounted) {
-          Navigator.pop(context);
+          // Возвращаемся к предыдущему экрану
+          Navigator.of(context).pop();
         }
       }
     }
@@ -108,9 +112,11 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
 
   /// Завершение звонка
   void _endCall() {
+    debugPrint('🔔 ActiveCallScreen: Пользователь завершает звонок');
     _webrtcService.endCall();
     if (mounted) {
-      Navigator.pop(context);
+      // Возвращаемся к предыдущему экрану
+      Navigator.of(context).pop();
     }
   }
 
