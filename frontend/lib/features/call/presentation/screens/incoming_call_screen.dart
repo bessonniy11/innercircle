@@ -152,22 +152,30 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                     const SizedBox(height: 24),
 
                     // Имя звонящего
-                    Text(
-                      'Входящий звонок от ${widget.remoteUsername}',
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      child: Text(
+                        'Входящий звонок от ${widget.remoteUsername}',
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
                     ),
                     const SizedBox(height: 16),
 
                     // Тип звонка
-                    Text(
-                      widget.callType == 'video' ? 'Видеозвонок' : 'Аудиозвонок',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        color: Colors.white70,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      child: Text(
+                        widget.callType == 'video' ? 'Видеозвонок' : 'Аудиозвонок',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          color: Colors.white70,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
                     ),
                   ],
