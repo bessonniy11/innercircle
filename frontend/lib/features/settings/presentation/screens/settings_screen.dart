@@ -4,6 +4,7 @@ import 'package:zvonilka/core/services/auth_service.dart';
 import 'package:zvonilka/core/config/api_config.dart';
 import 'package:zvonilka/core/api/api_client.dart';
 import 'package:zvonilka/core/socket/socket_client.dart';
+import 'package:zvonilka/core/socket/call_socket_client.dart';
 import 'package:zvonilka/features/auth/presentation/screens/login_screen.dart';
 import 'package:zvonilka/features/user/presentation/screens/user_profile_screen.dart';
 import 'package:zvonilka/core/widgets/app_logo.dart';
@@ -39,7 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _initializeData() async {
     try {
       _authService = await AuthService.getInstance();
-      _tokenData = _authService.getTokenData();
+      _tokenData = await _authService.getCurrentUser();
       setState(() {
         _isLoading = false;
       });
@@ -56,9 +57,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final apiClient = Provider.of<ApiClient>(context, listen: false);
       final socketClient = Provider.of<SocketClient>(context, listen: false);
+      final callSocketClient = Provider.of<CallSocketClient>(context, listen: false);
 
       // Отключаем WebSocket и очищаем токен
+      debugPrint('🔔 SettingsScreen: Отключаю основной сокет для сообщений...');
       socketClient.clearToken();
+      
+      debugPrint('🔔 SettingsScreen: Отключаю сокет для звонков...');
+      callSocketClient.disconnect();
+      debugPrint('🔔 SettingsScreen: Вызов callSocketClient.disconnect() завершен');
       
       // Очищаем токены из клиентов
       apiClient.removeAuthToken();

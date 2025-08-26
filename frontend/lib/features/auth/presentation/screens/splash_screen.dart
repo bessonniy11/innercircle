@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:zvonilka/core/services/auth_service.dart';
 import 'package:zvonilka/core/api/api_client.dart';
 import 'package:zvonilka/core/socket/socket_client.dart';
+import 'package:zvonilka/core/socket/call_socket_client.dart';
 import 'package:zvonilka/features/auth/presentation/screens/login_screen.dart';
 import 'package:zvonilka/features/chat/presentation/screens/chat_list_screen.dart';
 import 'package:zvonilka/core/widgets/app_logo.dart';
@@ -33,7 +34,8 @@ class _SplashScreenState extends State<SplashScreen> {
 
       if (!mounted) return;
 
-      if (authService.isAuthenticated) {
+      final isAuthenticated = await authService.isAuthenticated;
+      if (isAuthenticated) {
         // Пользователь авторизован, настраиваем клиенты и переходим к чатам
         await _setupAuthenticatedUser(authService);
       } else {
@@ -53,17 +55,28 @@ class _SplashScreenState extends State<SplashScreen> {
     try {
       final apiClient = Provider.of<ApiClient>(context, listen: false);
       final socketClient = Provider.of<SocketClient>(context, listen: false);
+      final callSocketClient = Provider.of<CallSocketClient>(context, listen: false);
 
-      final token = authService.getToken()!;
-      final userId = authService.getUserId()!;
-      final username = authService.getUsername()!;
+      final token = await authService.getAccessToken();
+      final userId = await authService.getUserId();
+      final username = await authService.getUsername();
+
+      if (token == null || userId == null || username == null) {
+        throw Exception('Missing auth data');
+      }
 
       // Настраиваем API клиент
       apiClient.setAuthToken(token);
       
       // Настраиваем Socket клиент
+      debugPrint('🔔 SplashScreen: Подключаю основной сокет для сообщений...');
       socketClient.setToken(token);
       socketClient.connect();
+
+      // Настраиваем Call Socket клиент
+      debugPrint('🔔 SplashScreen: Подключаю сокет для звонков...');
+      callSocketClient.connect(token);
+      debugPrint('🔔 SplashScreen: Вызов callSocketClient.connect() завершен');
 
       debugPrint('🎉 Auto-login successful for user: $username');
 

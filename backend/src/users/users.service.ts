@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Not } from 'typeorm';
+import { Repository, In, Not, MoreThan } from 'typeorm';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -152,6 +152,88 @@ export class UsersService {
     const result = await this.usersRepository.delete(id);
     if (result.affected === 0) {
       throw new NotFoundException(`User with ID ${id} not found`);
+    }
+  }
+
+  /**
+   * НОВОЕ: Сохраняет Refresh Token для пользователя
+   * @param userId - ID пользователя
+   * @param refreshToken - Refresh Token для сохранения
+   * @param expiresAt - Время истечения токена
+   */
+  async saveRefreshToken(userId: string, refreshToken: string, expiresAt: Date): Promise<void> {
+    try {
+      await this.usersRepository.update(userId, {
+        refreshToken,
+        refreshTokenExpiresAt: expiresAt,
+        updatedAt: new Date()
+      });
+    } catch (error) {
+      // Если колонки не существуют, просто логируем ошибку
+      console.warn('Refresh token columns not available, skipping save:', error.message);
+    }
+  }
+
+  /**
+   * НОВОЕ: Проверяет валидность Refresh Token
+   * @param userId - ID пользователя
+   * @param refreshToken - Refresh Token для проверки
+   * @returns Promise<boolean> - Валиден ли токен
+   */
+  async validateRefreshToken(userId: string, refreshToken: string): Promise<boolean> {
+    try {
+      const user = await this.usersRepository.findOneBy({ id: userId });
+      
+      // Проверяем, что поля существуют и не null
+      if (!user || !user.refreshToken || !user.refreshTokenExpiresAt) {
+        return false;
+      }
+  
+      // Проверяем, что токен совпадает и не истек
+      if (user.refreshToken !== refreshToken || user.refreshTokenExpiresAt < new Date()) {
+        return false;
+      }
+  
+      return true;
+    } catch (error) {
+      // Если колонки не существуют, возвращаем false
+      console.warn('Refresh token validation failed:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * НОВОЕ: Удаляет Refresh Token пользователя (logout)
+   * @param userId - ID пользователя
+   */
+  async removeRefreshToken(userId: string): Promise<void> {
+    try {
+      await this.usersRepository.update(userId, {
+        refreshToken: null,
+        refreshTokenExpiresAt: null,
+        updatedAt: new Date()
+      });
+    } catch (error) {
+      // Если колонки не существуют, просто логируем ошибку
+      console.warn('Refresh token columns not available, skipping removal:', error.message);
+    }
+  }
+
+  /**
+   * НОВОЕ: Получает пользователя по Refresh Token
+   * @param refreshToken - Refresh Token для поиска
+   * @returns Promise<User | null> - Найденный пользователь
+   */
+  async findByRefreshToken(refreshToken: string): Promise<User | null> {
+    try {
+      return this.usersRepository.findOneBy({ 
+        refreshToken,
+        refreshTokenExpiresAt: MoreThan(new Date())
+      });
+    } catch (error) {
+      // Если колонки не существуют, возвращаем null
+      console.warn('Refresh token search failed:', error.message);
+      return null;
     }
   }
 }

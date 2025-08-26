@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:zvonilka/core/api/api_client.dart';
 import 'package:zvonilka/core/socket/socket_client.dart';
+import 'package:zvonilka/core/socket/call_socket_client.dart';
 import 'package:zvonilka/core/services/auth_service.dart';
 import 'package:zvonilka/features/auth/presentation/screens/login_screen.dart';
 import 'package:zvonilka/features/chat/presentation/screens/message_screen.dart';
 import 'package:zvonilka/features/chat/presentation/screens/user_list_screen.dart'; // Импорт UserListScreen
 import 'package:zvonilka/features/settings/presentation/screens/settings_screen.dart';
+
 import 'package:zvonilka/core/widgets/app_logo.dart';
 import 'package:provider/provider.dart'; // Corrected import for Provider
-import 'package:flutter/foundation.dart';
+
+import 'package:zvonilka/core/services/call_notification_service.dart';
+import 'package:zvonilka/core/services/webrtc_service.dart' as webrtc;
 
 class ChatListScreen extends StatefulWidget {
   final String currentUserId;
@@ -34,6 +38,11 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _fetchChats();
+    
+    // Инициализируем сервис уведомлений для звонков
+    final callNotificationService = Provider.of<CallNotificationService>(context, listen: false);
+    final webrtcService = Provider.of<webrtc.WebRTCService>(context, listen: false);
+    callNotificationService.initializeWithWebRTCService(webrtcService, context);
   }
 
   @override
@@ -322,9 +331,15 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
       final authService = await AuthService.getInstance();
       final apiClient = Provider.of<ApiClient>(context, listen: false);
       final socketClient = Provider.of<SocketClient>(context, listen: false);
+      final callSocketClient = Provider.of<CallSocketClient>(context, listen: false);
 
       // Отключаем WebSocket и очищаем токен
+      debugPrint('🔔 ChatListScreen: Отключаю основной сокет для сообщений...');
       socketClient.clearToken();
+      
+      debugPrint('🔔 ChatListScreen: Отключаю сокет для звонков...');
+      callSocketClient.disconnect();
+      debugPrint('🔔 ChatListScreen: Вызов callSocketClient.disconnect() завершен');
       
       // Очищаем токены из клиентов
       apiClient.removeAuthToken();
@@ -432,19 +447,19 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
                   value: 'profile',
                   child: Row(
                     children: [
-                      const Icon(Icons.person, size: 20),
+                      const Icon(Icons.person, size: 20, color: Colors.blue),
                       const SizedBox(width: 12),
-                      Text(widget.currentUsername),
+                      Text(widget.currentUsername, style: const TextStyle(color: Colors.black87)),
                     ],
                   ),
                 ),
-                const PopupMenuItem<String>(
+                PopupMenuItem<String>(
                   value: 'settings',
                   child: Row(
                     children: [
-                      Icon(Icons.settings, size: 20),
-                      SizedBox(width: 12),
-                      Text('Настройки'),
+                      Icon(Icons.settings, size: 20, color: Colors.grey[700]),
+                      const SizedBox(width: 12),
+                      Text('Настройки', style: const TextStyle(color: Colors.black87)),
                     ],
                   ),
                 ),
@@ -464,6 +479,7 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
             icon: const Icon(Icons.more_vert),
             tooltip: 'Меню',
           ),
+
         ],
       ),
       body: _isLoading

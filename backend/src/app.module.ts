@@ -7,6 +7,7 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { InvitationCodesModule } from './invitation-codes/invitation-codes.module';
 import { ChatModule } from './chat/chat.module';
+import { CallModule } from './call/call.module'; // НОВОЕ - модуль звонков
 // import { MessageService } from './message/message.service'; // Remove this line
 
 @Module({
@@ -32,6 +33,7 @@ import { ChatModule } from './chat/chat.module';
     AuthModule,
     InvitationCodesModule,
     ChatModule,
+    CallModule, // НОВОЕ - модуль звонков
   ],
   controllers: [AppController],
   providers: [AppService],
