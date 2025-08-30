@@ -398,7 +398,7 @@ curl http://5.8.76.33/api-docs
 
 Откройте в браузере:
 - `http://5.8.76.33/api-docs`
-- `http://zvonilka.ibessonniy.ru/api-docs` (когда DNS настроится)
+- `https://zvonilka.ibessonniy.ru/api-docs` (когда DNS настроится)
 
 ### **10.3 Тест API endpoints**
 
