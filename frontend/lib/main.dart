@@ -76,6 +76,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider<WebRTCService>(
           create: (context) => WebRTCService(
             Provider.of<CallSocketClient>(context, listen: false),
+            Provider.of<ApiClient>(context, listen: false),
           ),
         ),
         Provider<CallNotificationService>(

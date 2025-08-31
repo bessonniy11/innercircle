@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'package:provider/provider.dart';
 import '../../../../core/services/webrtc_service.dart' as webrtc;
@@ -27,11 +28,16 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   Timer? _durationTimer;
   bool _isMuted = false;
   bool _isSpeakerOn = false;
+  RTCVideoRenderer? _remoteVideoRenderer;
 
   @override
   void initState() {
     super.initState();
     _webrtcService = Provider.of<webrtc.WebRTCService>(context, listen: false);
+    
+    // Инициализация RTCVideoRenderer для удаленного потока
+    _remoteVideoRenderer = RTCVideoRenderer();
+    _remoteVideoRenderer!.initialize();
     
     // Слушаем изменения состояния звонка
     _webrtcService.addListener(_onCallStateChanged);
@@ -46,6 +52,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   void dispose() {
     _durationTimer?.cancel();
     _webrtcService.removeListener(_onCallStateChanged);
+    _remoteVideoRenderer?.dispose();
     super.dispose();
   }
   
@@ -59,6 +66,13 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
         if (_durationTimer == null) {
           debugPrint('🔔 ActiveCallScreen: Звонок подключен, запускаем таймер');
           _startDurationTimer();
+        }
+        
+        // Настраиваем RTCVideoRenderer для удаленного потока
+        if (_webrtcService.remoteStream != null && _remoteVideoRenderer != null) {
+          debugPrint('🔔 ActiveCallScreen: Настраиваем RTCVideoRenderer для удаленного потока');
+          _remoteVideoRenderer!.srcObject = _webrtcService.remoteStream;
+          setState(() {}); // Обновляем UI
         }
       } else if (_webrtcService.callState == webrtc.CallState.ended || 
                  _webrtcService.callState == webrtc.CallState.error ||
@@ -134,19 +148,38 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Аватар собеседника
-                    CircleAvatar(
-                      radius: 60,
-                      backgroundColor: Colors.white,
-                      child: Text(
-                        widget.remoteUsername[0].toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFF4CAF50),
+                    // RTCVideoView для удаленного потока (аудио)
+                    if (_webrtcService.remoteStream != null)
+                      Container(
+                        width: 200,
+                        height: 150,
+                        decoration: BoxDecoration(
+                          color: Colors.black87,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: RTCVideoView(
+                            _remoteVideoRenderer!,
+                            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                          ),
+                        ),
+                      )
+                    else
+                      // Аватар собеседника (если поток не готов)
+                      CircleAvatar(
+                        radius: 60,
+                        backgroundColor: Colors.white,
+                        child: Text(
+                          widget.remoteUsername[0].toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 48,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF4CAF50),
+                          ),
                         ),
                       ),
-                    ),
                     const SizedBox(height: 24),
 
                     // Имя собеседника

@@ -25,6 +25,15 @@ import { CallResponseDto } from './dto/call-response.dto';
  */
 @Injectable()
 export class CallService {
+  // Конфигурация WebRTC STUN серверов
+  private readonly webrtcConfig = {
+    iceServers: [
+      { urls: 'stun:5.8.76.33:3478' }, // НАШ STUN сервер (приоритетный)
+      { urls: 'stun:stun.l.google.com:19302' }, // Fallback Google STUN
+      { urls: 'stun:stun1.l.google.com:19302' }, // Fallback Google STUN
+    ],
+  };
+
   constructor(
     @InjectRepository(Call)
     private readonly callRepository: Repository<Call>,
@@ -347,5 +356,16 @@ export class CallService {
    */
   async rejectCall(callId: string, userId: string): Promise<Call> {
     return await this.updateCallStatus(callId, CallStatus.REJECTED, userId);
+  }
+
+  /**
+   * НОВОЕ: Получает конфигурацию WebRTC для клиентов
+   * 
+   * @returns WebRTC конфигурация с STUN серверами
+   * @since 2.0.0
+   * @author ИИ-Ассистент + Bessonniy
+   */
+  getWebRTCConfig() {
+    return this.webrtcConfig;
   }
 }
