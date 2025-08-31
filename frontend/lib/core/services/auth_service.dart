@@ -1,6 +1,8 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:flutter/foundation.dart';
+import 'package:dio/dio.dart';
+import 'package:zvonilka/core/config/api_config.dart';
 
 /// Сервис для управления аутентификацией и токенами
 class AuthService {
@@ -11,6 +13,7 @@ class AuthService {
 
   static AuthService? _instance;
   SharedPreferences? _prefs;
+  final Dio _dio = Dio();
 
   AuthService._();
 
@@ -59,6 +62,47 @@ class AuthService {
     return _prefs!.getString(_refreshTokenKey);
   }
 
+  /// Обновить Access Token через Refresh Token
+  Future<bool> refreshAccessToken() async {
+    try {
+      final refreshToken = await getRefreshToken();
+      if (refreshToken == null) {
+        debugPrint('🔐 No refresh token available');
+        return false;
+      }
+
+      debugPrint('🔐 Attempting to refresh access token...');
+      
+      // Используем ApiConfig вместо захардкоженного URL
+      final refreshUrl = '${ApiConfig.currentBackendUrl}/auth/refresh';
+      debugPrint('🔐 Refresh URL: $refreshUrl');
+      
+      final response = await _dio.post(
+        refreshUrl,
+        data: {
+          'refresh_token': refreshToken,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final newAccessToken = response.data['access_token'];
+        final userId = response.data['user']['id'];
+        final username = response.data['user']['username'];
+        
+        // Сохраняем новый access token
+        await _prefs!.setString(_accessTokenKey, newAccessToken);
+        
+        debugPrint('🔐 Access token refreshed successfully for user: $username');
+        return true;
+      }
+      
+      return false;
+    } catch (e) {
+      debugPrint('🔐 Failed to refresh access token: $e');
+      return false;
+    }
+  }
+
   /// Проверить, есть ли валидный Access Token
   Future<bool> hasValidAccessToken() async {
     final token = await getAccessToken();
@@ -70,8 +114,17 @@ class AuthService {
     try {
       bool isExpired = JwtDecoder.isExpired(token);
       if (isExpired) {
-        debugPrint('🔐 Access token expired');
-        return false;
+        debugPrint('🔐 Access token expired, attempting to refresh...');
+        
+        // Пытаемся обновить токен
+        final refreshed = await refreshAccessToken();
+        if (refreshed) {
+          debugPrint('🔐 Token refreshed successfully');
+          return true;
+        } else {
+          debugPrint('🔐 Failed to refresh token');
+          return false;
+        }
       }
 
       debugPrint('🔐 Valid access token found for user: ${await getUsername()}');

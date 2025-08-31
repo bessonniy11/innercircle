@@ -1,42 +1,65 @@
 import 'package:flutter/foundation.dart';
 
 class ApiConfig {
-  // URLs для разных режимов
-  static const String localBackendUrl = 'http://localhost:3000';
-  static const String productionBackendUrl = 'http://5.8.76.33'; // Или zvonilka.ibessonniy.ru когда будет готов
-  
   // Автоматическое определение режима
   static bool get isDevelopment {
     // Проверяем flutter run параметры
     const apiUrl = String.fromEnvironment('API_URL', defaultValue: '');
     if (apiUrl.isNotEmpty) {
-      return apiUrl.contains('localhost');
+      final isDev = apiUrl.contains('localhost') || apiUrl.contains('127.0.0.1');
+      debugPrint('🌐 API Mode determined from API_URL: ${isDev ? "Development" : "Production"}');
+      return isDev;
     }
     
     // Автоматически определяем по режиму Flutter
-    return kDebugMode;
+    final isDev = kDebugMode;
+    debugPrint('🌐 API Mode determined from kDebugMode: ${isDev ? "Development" : "Production"}');
+    return isDev;
   }
   
-  // Текущий URL (автоматически выбирается)
+  // Текущий URL (полностью из .env файлов)
   static String get currentBackendUrl {
-    // Сначала проверяем переменную окружения
+    // Проверяем переменную окружения API_URL
     const apiUrl = String.fromEnvironment('API_URL', defaultValue: '');
     if (apiUrl.isNotEmpty) {
+      debugPrint('🌐 Using API_URL from environment: $apiUrl');
       return apiUrl;
     }
     
-    // Иначе по режиму разработки
-    return isDevelopment ? localBackendUrl : productionBackendUrl;
+    // Если API_URL не задан, используем fallback
+    if (isDevelopment) {
+      const fallbackUrl = 'http://localhost:3000';
+      debugPrint('🌐 Using fallback URL for development: $fallbackUrl');
+      return fallbackUrl;
+    } else {
+      const fallbackUrl = 'http://5.8.76.33:3000'; // Временный fallback для production
+      debugPrint('🌐 Using fallback URL for production: $fallbackUrl');
+      debugPrint('⚠️ WARNING: Using fallback URL. Set API_URL in .env.production for production!');
+      return fallbackUrl;
+    }
   }
   
   // Timeouts
-  static const Duration connectTimeout = Duration(milliseconds: 5000);
-  static const Duration receiveTimeout = Duration(milliseconds: 3000);
+  static const Duration connectTimeout = Duration(seconds: 10); // Увеличиваем для production
+  static const Duration receiveTimeout = Duration(seconds: 30); // Увеличиваем для production
   
   // Для отладки
   static void printCurrentConfig() {
-    print('🌐 API Mode: ${isDevelopment ? "Development" : "Production"}');
-    print('🔗 Backend URL: $currentBackendUrl');
-    print('🛠️ Debug Mode: $kDebugMode');
+    debugPrint('🌐 === API Configuration ===');
+    debugPrint('🌐 Mode: ${isDevelopment ? "Development" : "Production"}');
+    debugPrint('🔗 Backend URL: $currentBackendUrl');
+    debugPrint('🛠️ Debug Mode: $kDebugMode');
+    debugPrint('⏱️ Connect Timeout: $connectTimeout');
+    debugPrint('⏱️ Receive Timeout: $receiveTimeout');
+    
+    // Проверяем .env переменные
+    const apiUrl = String.fromEnvironment('API_URL', defaultValue: '');
+    if (apiUrl.isNotEmpty) {
+      debugPrint('✅ API_URL from environment: $apiUrl');
+    } else {
+      debugPrint('⚠️ API_URL not set, using fallback URLs');
+    }
+    
+    debugPrint('🌐 ========================');
   }
 }
