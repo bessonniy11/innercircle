@@ -225,7 +225,6 @@ class CallSocketClient {
   void on(String event, Function(dynamic) handler) {
     if (_socket != null) {
       _socket!.on(event, handler);
-      debugPrint('🔔 CallSocket: Подписка на событие: $event');
     } else {
       debugPrint('🔥 CallSocket: Не удалось подписаться на $event - socket == null');
     }
