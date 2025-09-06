@@ -108,6 +108,12 @@ flutter run
 
 # моё устройство с device_id 0N13C08I261020C8
 flutter run -d 0N13C08I261020C8 --dart-define-from-file=.env.production
+
+# Для development
+flutter build apk --debug --dart-define-from-file=.env.production
+
+# Для development release
+flutter build apk --release --dart-define-from-file=.env.production
 ```
 
 **Автоматическая конфигурация:**
