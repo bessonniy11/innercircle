@@ -45,7 +45,9 @@ import { JwtService } from '@nestjs/jwt';
   
     private readonly logger = new Logger(CallGateway.name);
     private readonly userSockets = new Map<string, Socket>(); // userId -> Socket
-  
+    private readonly callParticipants = new Map<string, { callerId: string, receiverId: string }>();
+
+
     constructor(
         private readonly eventEmitter: EventEmitter2,
         private readonly jwtService: JwtService,
@@ -162,8 +164,12 @@ import { JwtService } from '@nestjs/jwt';
         this.logger.log(`Пользователь ${userId} инициирует звонок к ${remoteUserId}`);
         
         // Генерируем callId для звонка
-        const callId = `call_${Date.now()}_${userId}`;
+        const callId = `call_${Date.now()}_${userId}_${remoteUserId}`;
         
+        // Сохраняем участников звонка
+        this.callParticipants.set(callId, { callerId: userId, receiverId: remoteUserId });
+        this.logger.log(`Участники для звонка ${callId} сохранены: ${userId} -> ${remoteUserId}`);
+
         // Отправляем уведомление о входящем звонке получателю
         const receiverSocket = this.userSockets.get(remoteUserId);
         if (receiverSocket) {
@@ -251,6 +257,9 @@ import { JwtService } from '@nestjs/jwt';
 
         this.logger.log(`Пользователь ${userId} отклоняет звонок ${callId}`);
 
+        // Удаляем участников из временного хранилища
+        this.callParticipants.delete(callId);
+
         // Извлекаем ID звонящего из callId (формат: call_timestamp_callerId)
         const parts = callId.split('_');
         if (parts.length >= 3) {
@@ -289,6 +298,9 @@ import { JwtService } from '@nestjs/jwt';
         const userId = user.id || user.sub;
 
         this.logger.log(`Пользователь ${userId} завершает звонок ${callId}`);
+
+        // Удаляем участников из временного хранилища
+        this.callParticipants.delete(callId);
 
         // Определяем ID другого участника
         let otherUserId: string | undefined;
@@ -547,47 +559,25 @@ import { JwtService } from '@nestjs/jwt';
         const { callId, candidate } = data;
         const userId = user.id || user.sub;
         
-        // ИСПРАВЛЕНИЕ: Добавляем проверку на null callId
         if (!callId) {
           this.logger.warn(`Получен ICE кандидат с callId: null от пользователя ${userId}`);
           return;
         }
 
-        // Определяем целевого пользователя по логике из callId
-        let targetUserId: string;
-        
-        if (callId.startsWith('temp_')) {
-          // Временный callId: temp_timestamp_remoteUserId
-          // Текущий пользователь - звонящий, целевой - получатель
-          const parts = callId.split('_');
-          if (parts.length >= 3) {
-            targetUserId = parts[2]; // remoteUserId из временного callId
-          } else {
-            this.logger.error(`Неверный формат временного callId: ${callId}`);
-            return;
-          }
-        } else if (callId.startsWith('call_')) {
-          // Постоянный callId: call_timestamp_callerId
-          // Текущий пользователь - получатель, целевой - звонящий
-          const parts = callId.split('_');
-          if (parts.length >= 3) {
-            targetUserId = parts[2]; // callerId из постоянного callId
-          } else {
-            this.logger.error(`Неверный формат постоянного callId: ${callId}`);
-            return;
-          }
-        } else {
-          this.logger.error(`Неизвестный формат callId: ${callId}`);
+        const participants = this.callParticipants.get(callId);
+        if (!participants) {
+          this.logger.warn(`Не найдены участники для звонка ${callId} при обработке ICE кандидата.`);
           return;
         }
+
+        const { callerId, receiverId } = participants;
+        const targetUserId = userId === callerId ? receiverId : callerId;
         
-        // Проверяем что целевой пользователь не является текущим
         if (targetUserId === userId) {
-          this.logger.error(`Попытка отправить ICE кандидат самому себе: ${userId}`);
+          this.logger.error(`Попытка отправить ICE кандидат самому себе: ${userId} для звонка ${callId}`);
           return;
         }
         
-        // Отправляем ICE кандидат целевому пользователю
         const targetSocket = this.userSockets.get(targetUserId);
         
         if (targetSocket) {

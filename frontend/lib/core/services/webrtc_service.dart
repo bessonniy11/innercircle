@@ -42,6 +42,9 @@ class WebRTCService extends ChangeNotifier {
   // Очередь ICE кандидатов для добавления после установки remote description
   final List<RTCIceCandidate> _pendingIceCandidates = [];
   
+  // Буфер для исходящих ICE кандидатов до получения callId
+  final List<RTCIceCandidate> _outgoingIceCandidatesBuffer = [];
+
   // Флаг для предотвращения многократного сброса состояния
   bool _isResetting = false;
   
@@ -348,10 +351,12 @@ class WebRTCService extends ChangeNotifier {
       _peerConnection!.onIceCandidate = (candidate) {
         if (candidate != null) {
           
-          _callSocketClient.emit('ice_candidate', {
-            'callId': _currentCallId,
-            'candidate': candidate.toMap(),
-          });
+          // ИСПРАВЛЕНИЕ: Буферизируем кандидаты, если callId еще не получен
+          if (_currentCallId == null) {
+            _outgoingIceCandidatesBuffer.add(candidate);
+          } else {
+            _sendIceCandidate(candidate);
+          }
         }
       };
 
@@ -654,11 +659,29 @@ class WebRTCService extends ChangeNotifier {
       final callId = data['callId'];
 
       // Обновляем _currentCallId на реальный callId от сервера
-      if (callId != null && callId != _currentCallId) {
+      if (callId != null) {
         _currentCallId = callId;
+
+        // Отправляем всех кандидатов из буфера
+        if (_outgoingIceCandidatesBuffer.isNotEmpty) {
+          for (final candidate in _outgoingIceCandidatesBuffer) {
+            _sendIceCandidate(candidate);
+          }
+          _outgoingIceCandidatesBuffer.clear();
+        }
       }
     } catch (e) {
       // Игнорируем
+    }
+  }
+
+  // Отправка ICE кандидата на сервер
+  void _sendIceCandidate(RTCIceCandidate candidate) {
+    if (_currentCallId != null) {
+      _callSocketClient.emit('ice_candidate', {
+        'callId': _currentCallId,
+        'candidate': candidate.toMap(),
+      });
     }
   }
 
@@ -691,6 +714,7 @@ class WebRTCService extends ChangeNotifier {
       _remoteUserId = null;
       _remoteUsername = null;
       _pendingIceCandidates.clear();
+      _outgoingIceCandidatesBuffer.clear();
       
       // Устанавливаем состояние 'ended', чтобы UI мог среагировать до полного сброса
       _setCallState(CallState.ended);
