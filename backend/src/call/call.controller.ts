@@ -275,6 +275,45 @@ export class CallController {
   }
 
   /**
+   * Получение конфигурации WebRTC
+   * 
+   * @returns WebRTC конфигурация с STUN серверами
+   * 
+   * @example
+   * ```typescript
+   * GET /calls/webrtc-config
+   * ```
+   * @since 2.0.0
+   * @author ИИ-Ассистент + Bessonniy
+   */
+  @Get('webrtc-config')
+  @ApiOperation({
+    summary: 'WebRTC конфигурация',
+    description: 'Получает конфигурацию WebRTC с STUN серверами для клиентов'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'WebRTC конфигурация успешно получена',
+    schema: {
+      type: 'object',
+      properties: {
+        iceServers: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              urls: { type: 'string' }
+            }
+          }
+        }
+      }
+    }
+  })
+  async getWebRTCConfig() {
+    return this.callService.getWebRTCConfig();
+  }
+
+  /**
    * Получение информации о конкретном звонке
    * 
    * @param callId - ID звонка

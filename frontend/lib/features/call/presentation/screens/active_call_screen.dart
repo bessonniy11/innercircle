@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'package:provider/provider.dart';
 import '../../../../core/services/webrtc_service.dart' as webrtc;
@@ -27,11 +28,17 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   Timer? _durationTimer;
   bool _isMuted = false;
   bool _isSpeakerOn = false;
+  RTCVideoRenderer? _remoteVideoRenderer;
+  bool _isClosing = false; // ИСПРАВЛЕНИЕ: Флаг для предотвращения множественного закрытия экрана
 
   @override
   void initState() {
     super.initState();
     _webrtcService = Provider.of<webrtc.WebRTCService>(context, listen: false);
+    
+    // Инициализация RTCVideoRenderer для удаленного потока
+    _remoteVideoRenderer = RTCVideoRenderer();
+    _remoteVideoRenderer!.initialize();
     
     // Слушаем изменения состояния звонка
     _webrtcService.addListener(_onCallStateChanged);
@@ -44,31 +51,71 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
 
   @override
   void dispose() {
+    // Останавливаем таймер длительности
     _durationTimer?.cancel();
-    _webrtcService.removeListener(_onCallStateChanged);
+    _durationTimer = null;
+    
+    // Убираем слушатель WebRTCService
+    try {
+      _webrtcService.removeListener(_onCallStateChanged);
+    } catch (e) {
+      // Игнорируем
+    }
+    
+    // Освобождаем RTCVideoRenderer
+    try {
+      if (_remoteVideoRenderer != null) {
+        _remoteVideoRenderer!.dispose();
+        _remoteVideoRenderer = null;
+      }
+    } catch (e) {
+      // Игнорируем
+    }
+    
     super.dispose();
   }
   
   /// Обработчик изменения состояния звонка
   void _onCallStateChanged() {
     if (mounted) {
-      debugPrint('🔔 ActiveCallScreen: Состояние звонка изменилось на: ${_webrtcService.callState.name}');
       
       if (_webrtcService.callState == webrtc.CallState.connected) {
         // Звонок подключен - запускаем таймер
         if (_durationTimer == null) {
-          debugPrint('🔔 ActiveCallScreen: Звонок подключен, запускаем таймер');
           _startDurationTimer();
+        }
+        
+        // Настраиваем RTCVideoRenderer для удаленного потока
+        if (_webrtcService.remoteStream != null && _remoteVideoRenderer != null) {
+          _remoteVideoRenderer!.srcObject = _webrtcService.remoteStream;
+          setState(() {}); // Обновляем UI
         }
       } else if (_webrtcService.callState == webrtc.CallState.ended || 
                  _webrtcService.callState == webrtc.CallState.error ||
                  _webrtcService.callState == webrtc.CallState.idle) {
-        // Звонок завершен - останавливаем таймер и закрываем экран
-        debugPrint('🔔 ActiveCallScreen: Звонок завершен (статус: ${_webrtcService.callState.name}), закрываем экран');
-        _durationTimer?.cancel();
-        if (mounted) {
-          // Возвращаемся к предыдущему экрану
-          Navigator.of(context).pop();
+        if (!_isClosing) {
+          _isClosing = true; // Устанавливаем флаг
+          
+          _durationTimer?.cancel();
+          
+          // Используем addPostFrameCallback, чтобы избежать "click-through".
+          // Это гарантирует, что Navigator.pop() будет вызван после завершения текущего кадра
+          // и обработки всех событий ввода.
+          if (mounted) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                try {
+                  Navigator.of(context).pop();
+                } catch (e) {
+                  try {
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  } catch (e2) {
+                    // Игнорируем
+                  }
+                }
+              }
+            });
+          }
         }
       }
     }
@@ -107,16 +154,16 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
       _isSpeakerOn = !_isSpeakerOn;
     });
     // TODO: Реализовать переключение динамика
-    debugPrint('🔊 Speaker ${_isSpeakerOn ? "on" : "off"}');
   }
 
   /// Завершение звонка
-  void _endCall() {
-    debugPrint('🔔 ActiveCallScreen: Пользователь завершает звонок');
-    _webrtcService.endCall();
-    if (mounted) {
-      // Возвращаемся к предыдущему экрану
-      Navigator.of(context).pop();
+  void _endCall() async {
+
+    // Только инициируем завершение звонка. 
+    // Экран будет закрыт автоматически в `_onCallStateChanged`, когда изменится состояние.
+    // Это предотвращает "призрачные нажатия" на экран, который находится ниже.
+    if (!_isClosing) {
+      await _webrtcService.endCall();
     }
   }
 
@@ -134,19 +181,38 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Аватар собеседника
-                    CircleAvatar(
-                      radius: 60,
-                      backgroundColor: Colors.white,
-                      child: Text(
-                        widget.remoteUsername[0].toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFF4CAF50),
+                    // RTCVideoView для удаленного потока (аудио)
+                    if (_webrtcService.remoteStream != null)
+                      Container(
+                        width: 200,
+                        height: 150,
+                        decoration: BoxDecoration(
+                          color: Colors.black87,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: RTCVideoView(
+                            _remoteVideoRenderer!,
+                            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                          ),
+                        ),
+                      )
+                    else
+                      // Аватар собеседника (если поток не готов)
+                      CircleAvatar(
+                        radius: 60,
+                        backgroundColor: Colors.white,
+                        child: Text(
+                          widget.remoteUsername[0].toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 48,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF4CAF50),
+                          ),
                         ),
                       ),
-                    ),
                     const SizedBox(height: 24),
 
                     // Имя собеседника

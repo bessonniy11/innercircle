@@ -160,7 +160,11 @@ npm install
 
 # Сборка проекта
 npm run build
+
+# crypto
+echo "global.crypto = require('crypto');" | cat - dist/main.js > temp && mv temp dist/main.js
 ```
+
 
 ---
 
@@ -398,7 +402,7 @@ curl http://5.8.76.33/api-docs
 
 Откройте в браузере:
 - `http://5.8.76.33/api-docs`
-- `http://zvonilka.ibessonniy.ru/api-docs` (когда DNS настроится)
+- `https://zvonilka.ibessonniy.ru/api-docs` (когда DNS настроится)
 
 ### **10.3 Тест API endpoints**
 
@@ -452,6 +456,58 @@ echo "global.crypto = require('crypto');" | cat - dist/main.js > temp && mv temp
 # Запуск
 pm2 start zvonilka-backend
 pm2 logs zvonilka-backend
+```
+
+### **🚀 Простой перезапуск backend (одной командой):**
+
+```bash
+# Создайте скрипт для быстрого перезапуска
+nano /root/restart_backend.sh
+```
+
+**Содержимое скрипта `/root/restart_backend.sh`:**
+```bash
+#!/bin/bash
+echo "🔄 Перезапуск backend..."
+
+cd /var/www/zvonilka/backend
+
+echo "⏹️ Останавливаем backend..."
+pm2 stop zvonilka-backend
+
+echo "🔨 Пересобираем проект..."
+npm run build
+
+echo "🔧 Исправляем crypto polyfill..."
+echo "global.crypto = require('crypto');" | cat - dist/main.js > temp && mv temp dist/main.js
+
+echo "▶️ Запускаем backend..."
+pm2 start zvonilka-backend
+
+echo "📊 Проверяем статус..."
+pm2 status zvonilka-backend
+
+echo "✅ Backend перезапущен!"
+echo "📝 Логи: pm2 logs zvonilka-backend"
+```
+
+**Делаем скрипт исполняемым:**
+```bash
+chmod +x /root/restart_backend.sh
+```
+
+**Теперь перезапуск backend - одна команда:**
+```bash
+/root/restart_backend.sh
+```
+
+**Или создайте алиас в ~/.bashrc:**
+```bash
+echo 'alias restart-backend="/root/restart_backend.sh"' >> ~/.bashrc
+source ~/.bashrc
+
+# Теперь можно использовать:
+restart-backend
 ```
 
 ### **Перезапуск сервисов:**
@@ -788,3 +844,23 @@ pm2 logs zvonilka-backend --lines 100 -f
 **👨‍💻 Автор:** ИИ-Ассистент + Bessonniy  
 **🌐 Production URL:** http://5.8.76.33 (временно), https://zvonilka.ibessonniy.ru (планируется)  
 **🎯 Статус:** Production ready ✅
+
+## 🎉 **WebRTC STUN Сервер: НАСТРОЕН И РАБОТАЕТ!** ✅
+
+**Статус:** ✅ **ПОЛНОСТЬЮ НАСТРОЕН И РАБОТАЕТ** (25.08.2025)
+
+**Результат:** WebRTC звонки теперь ПОЛНОСТЬЮ РАБОТАЮТ! Пользователи слышат друг друга как на веб-версии, так и на мобильных устройствах.
+
+**Технические детали:**
+- **STUN сервер:** coturn на порту 3478 UDP ✅
+- **TURN сервер:** планируется в будущем для сложных сетей ⏳
+- **Конфигурация:** `/etc/turnserver.conf` настроен для STUN ✅
+- **Файрвол:** UFW с открытым портом 3478 UDP ✅
+- **Сервис:** Автозапуск через systemd ✅
+- **Тестирование:** Звонки работают между устройствами ✅
+
+**📝 ПРИМЕЧАНИЕ:** TURN сервер планируется добавить позже для обеспечения стабильной работы в корпоративных сетях с жесткими файрволами.
+
+**🎯 РЕЗУЛЬТАТ:** Семейный мессенджер "Звонилка" теперь имеет полноценные голосовые звонки!
+
+**🚀 Следующие шаги:** Настройка TURN сервера для 100% покрытия сетей.

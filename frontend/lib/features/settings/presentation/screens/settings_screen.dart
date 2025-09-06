@@ -55,23 +55,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// Logout функциональность
   Future<void> _logout() async {
     try {
-      final apiClient = Provider.of<ApiClient>(context, listen: false);
-      final socketClient = Provider.of<SocketClient>(context, listen: false);
-      final callSocketClient = Provider.of<CallSocketClient>(context, listen: false);
+      final authService = Provider.of<AuthService>(context, listen: false);
 
-      // Отключаем WebSocket и очищаем токен
-      debugPrint('🔔 SettingsScreen: Отключаю основной сокет для сообщений...');
-      socketClient.clearToken();
-      
-      debugPrint('🔔 SettingsScreen: Отключаю сокет для звонков...');
-      callSocketClient.disconnect();
-      debugPrint('🔔 SettingsScreen: Вызов callSocketClient.disconnect() завершен');
-      
-      // Очищаем токены из клиентов
-      apiClient.removeAuthToken();
-      
-      // Очищаем сохраненные данные
-      await _authService.clearAuthData();
+      // Просто вызываем logout. AuthService уведомит всех слушателей (сокеты)
+      // и очистит данные.
+      await authService.logout();
       
       debugPrint('🚪 Logout from settings successful');
 

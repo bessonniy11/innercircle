@@ -153,6 +153,10 @@ innercircle/
 │   ├── user_experience_design.md              # UX/UI дизайн и пользовательские сценарии
 │   ├── security_and_privacy.md                # Безопасность и конфиденциальность
 │   ├── api_documentation.md                   # API документация REST и WebSocket (НОВОЕ)
+│   ├── webrtc_explanation.md                  # Объяснение WebRTC, STUN/TURN, ICE (НОВОЕ - 25.08.2025)
+│   ├── stun_server_setup_guide.md             # Руководство по настройке STUN сервера (НОВОЕ - 25.08.2025)
+│   ├── test_stun_server.md                    # Инструкция по тестированию STUN сервера (НОВОЕ - 25.08.2025)
+│   ├── webrtc_implementation_report.md        # Отчет о реализации решения WebRTC (НОВОЕ - 25.08.2025)
 │   └── 📁 assets/                             # Ресурсы документации
 │       ├── 📁 images/                         # Диаграммы и схемы
 │       └── 📁 screenshots/                    # Скриншоты приложения
@@ -975,8 +979,8 @@ frontend/
 
 **📅 Последнее обновление:** 25.08.2025  
 **👤 Ответственный:** ИИ-Ассистент + Bessonniy  
-**🎯 Статус:** MVP ПОЛНОСТЬЮ ЗАВЕРШЕН ✅ | Production Deployment ✅ | **WebRTC Модуль ПОЛНОСТЬЮ ГОТОВ И ИНТЕГРИРОВАН** ✅ | **КРИТИЧЕСКИЕ ПРОБЛЕМЫ ТРЕБУЮТ РЕШЕНИЯ** 🚨  
-**📋 Версия плана:** 7.0  
+**🎯 Статус:** MVP ПОЛНОСТЬЮ ЗАВЕРШЕН ✅ | Production Deployment ✅ | **WebRTC Модуль ПОЛНОСТЬЮ ГОТОВ И ИНТЕГРИРОВАН** ✅ | **Создан документ WebRTC объяснения** ✅ | **КРИТИЧЕСКИЕ ПРОБЛЕМЫ ТРЕБУЮТ РЕШЕНИЯ** 🚨  
+**📋 Версия структуры:** 6.1  
 **🌐 Production:** http://5.8.76.33
 
 ### **🎉 ВАЖНЫЕ ДОСТИЖЕНИЯ:**
@@ -993,4 +997,24 @@ frontend/
 - ✅ **Модуль звонков полностью готов** - backend, API, WebSocket, база данных
 - ✅ **WebRTC UI полностью интегрирован** - звонки работают из основного интерфейса без тестового экрана
 - ✅ **🚨 КРИТИЧЕСКИЕ ПРОБЛЕМЫ ВЫЯВЛЕНЫ** - требуют немедленного решения для полноценной работы приложения
+
+### **WebRTC Модуль Звонков** ✅
+**Статус:** 🎉 **ПОЛНОСТЬЮ РАБОТАЕТ** (25.08.2025)
+
+**Описание:** Модуль для голосовых звонков через WebRTC с real-time сигналингом через WebSocket.
+
+**Файлы:**
+- `backend/src/call/call.module.ts` - Модуль звонков ✅
+- `backend/src/call/call.service.ts` - Бизнес-логика звонков ✅
+- `backend/src/call/call.controller.ts` - REST API для звонков ✅
+- `backend/src/call/call.gateway.ts` - WebSocket сигналинг ✅
+- `backend/src/call/call.entity.ts` - Entity для звонков ✅
+- `backend/src/call/dto/` - DTO для API ✅
+
+**Frontend интеграция:**
+- `frontend/lib/core/services/webrtc_service.dart` - WebRTC сервис ✅
+- `frontend/lib/core/socket/call_socket_client.dart` - WebSocket клиент для звонков ✅
+- `frontend/lib/features/call/` - UI для звонков ✅
+
+**Статус:** ✅ **WebRTC звонки ПОЛНОСТЬЮ РАБОТАЮТ!** Аудио передается между устройствами! 🎵
 
