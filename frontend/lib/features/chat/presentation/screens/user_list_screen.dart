@@ -81,7 +81,6 @@ class _UserListScreenState extends State<UserListScreen> {
   /// Начать звонок с пользователем
   Future<void> _startCall(UserPublicDto user) async {
     try {
-      debugPrint('🔔 UserListScreen: Начинаем звонок к ${user.username}');
       
       // Получаем WebRTCService и CallSocketClient
       final webrtcService = Provider.of<webrtc.WebRTCService>(context, listen: false);
@@ -89,7 +88,6 @@ class _UserListScreenState extends State<UserListScreen> {
       
       // Проверяем, что сокет подключен
       if (!callSocketClient.isConnected) {
-        debugPrint('🔥 UserListScreen: CallSocket не подключен');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Ошибка: нет подключения к серверу звонков')),
         );
@@ -104,7 +102,6 @@ class _UserListScreenState extends State<UserListScreen> {
                    );
       
       if (success) {
-        debugPrint('🔔 UserListScreen: Звонок инициирован успешно');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Звонок к ${user.username} инициирован')),
         );
@@ -120,14 +117,12 @@ class _UserListScreenState extends State<UserListScreen> {
           ),
         );
       } else {
-        debugPrint('🔥 UserListScreen: Не удалось инициировать звонок');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Не удалось инициировать звонок')),
         );
       }
       
     } catch (e) {
-      debugPrint('🔥 UserListScreen: Ошибка при инициации звонка: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Ошибка: ${e.toString()}')),
       );

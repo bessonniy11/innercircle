@@ -65,6 +65,33 @@ Content-Type: application/json
 
 ---
 
+#### **POST /auth/refresh** 🔒
+Обновление `access_token` с помощью `refresh_token`.
+
+**Request Body:**
+```json
+{
+  "refresh_token": "your_long_lived_refresh_token"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "access_token": "your_new_short_lived_access_token",
+  "expires_in": 900,
+  "user": {
+    "id": "user-uuid",
+    "username": "user1"
+  }
+}
+```
+
+**Errors:**
+- `401 Unauthorized` - Неверный или просроченный `refresh_token`.
+
+---
+
 ### **2. 👤 Пользователи (`/users`)**
 
 #### **POST /users/register**
@@ -1131,10 +1158,10 @@ curl -X GET "http://localhost:3000/messages/CHAT_ID?limit=20" \
 
 ---
 
-**📅 Последнее обновление:** 25.08.2025  
+**📅 Последнее обновление:** 26.08.2025  
 **👨‍💻 Автор:** ИИ-Ассистент + Bessonniy  
-**📡 Версия API:** 1.4.0  
-**🎯 Статус:** Актуальная документация всех реализованных endpoints ✅ | Личные Чаты ✅ | **WebRTC Звонки ПОЛНОСТЬЮ РАБОТАЮТ** ✅ | Семейный мессенджер готов к использованию! 🎉
+**📡 Версия API:** 1.5.0  
+**🎯 Статус:** Актуальная документация всех реализованных endpoints ✅ | Личные Чаты ✅ | **WebRTC Звонки ПОЛНОСТЬЮ РАБОТАЮТ** ✅ | **Авторизация СТАБИЛЬНА** ✅ | Семейный мессенджер готов к использованию! 🎉
 
 ---
 

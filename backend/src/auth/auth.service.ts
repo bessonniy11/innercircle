@@ -30,7 +30,7 @@ export class AuthService {
     
     // Генерируем Access Token (короткий)
     const accessToken = this.jwtService.sign(payload, { 
-      expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') 
+      expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') // ВРЕМЕННО: 15 секунд для теста
     });
     
     // Генерируем Refresh Token (долгий)
@@ -74,12 +74,12 @@ export class AuthService {
       // Генерируем новый Access Token
       const newAccessToken = this.jwtService.sign(
         { username: payload.username, sub: payload.sub },
-        { expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') }
+        { expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') } // ВРЕМЕННО: 15 секунд для теста
       );
 
       return {
         access_token: newAccessToken,
-        expires_in: 15 * 60,
+        expires_in: 15 * 60, // 15 минут в секундах
         user: {
           id: payload.sub,
           username: payload.username

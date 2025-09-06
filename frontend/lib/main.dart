@@ -50,7 +50,7 @@ Future<void> requestMicrophonePermissions() async {
     }
     
   } catch (e) {
-    debugPrint('�� Ошибка при запросе разрешений: $e');
+    debugPrint('🚨 Ошибка при запросе разрешений: $e');
   }
 }
 
@@ -61,17 +61,27 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<ApiClient>(
-          create: (_) => ApiClient(),
-        ),
-        Provider<SocketClient>(
-          create: (_) => SocketClient(),
-        ),
-        Provider<CallSocketClient>(
-          create: (_) => CallSocketClient(),
-        ),
-        Provider<AuthService>(
+        // AuthService теперь ChangeNotifierProvider
+        ChangeNotifierProvider<AuthService>(
           create: (_) => AuthService(),
+        ),
+        // ApiClient зависит от AuthService
+        Provider<ApiClient>(
+          create: (context) => ApiClient(
+            Provider.of<AuthService>(context, listen: false),
+          ),
+        ),
+        // SocketClient зависит от AuthService
+        Provider<SocketClient>(
+          create: (context) => SocketClient(
+            Provider.of<AuthService>(context, listen: false),
+          ),
+        ),
+        // CallSocketClient зависит от AuthService и теперь тоже ChangeNotifierProvider
+        ChangeNotifierProvider<CallSocketClient>(
+          create: (context) => CallSocketClient(
+            Provider.of<AuthService>(context, listen: false),
+          ),
         ),
         ChangeNotifierProvider<WebRTCService>(
           create: (context) => WebRTCService(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:zvonilka/core/api/api_client.dart';
 import 'package:zvonilka/features/auth/presentation/screens/login_screen.dart';
 import 'package:zvonilka/core/widgets/app_logo.dart';
@@ -14,7 +15,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _invitationCodeController = TextEditingController();
-  final ApiClient _apiClient = ApiClient();
 
   @override
   void dispose() {
@@ -29,8 +29,11 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     final String password = _passwordController.text;
     final String invitationCode = _invitationCodeController.text;
 
+    // Получаем ApiClient из Provider'а
+    final apiClient = Provider.of<ApiClient>(context, listen: false);
+
     try {
-      final response = await _apiClient.dio.post('/users/register', data: {
+      final response = await apiClient.dio.post('/users/register', data: {
         'username': username,
         'password': password,
         'invitationCode': invitationCode,

@@ -24,7 +24,6 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
-    // TODO: Dispose _socketClient if it has a dispose method or close connection
     super.dispose();
   }
 
@@ -34,9 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final apiClient = Provider.of<ApiClient>(context, listen: false);
-      final socketClient = Provider.of<SocketClient>(context, listen: false);
-      final callSocketClient = Provider.of<CallSocketClient>(context, listen: false);
-      final authService = await AuthService.getInstance();
+      final authService = Provider.of<AuthService>(context, listen: false);
 
       final response = await apiClient.dio.post('/auth/login', data: {'username': username, 'password': password});
       final String accessToken = response.data['access_token'];
@@ -47,7 +44,8 @@ class _LoginScreenState extends State<LoginScreen> {
       final String currentUserId = decodedToken['sub']; // 'sub' is typically the user ID
       final String currentUsername = decodedToken['username']; // 'username' is typically the username
 
-      // ✅ Сохраняем данные аутентификации для persistent login
+      // ✅ Сохраняем данные аутентификации.
+      // AuthService сам уведомит всех слушателей (включая сокеты) о новых токенах.
       await authService.saveAuthData(
         accessToken: accessToken,
         refreshToken: refreshToken,
@@ -55,22 +53,8 @@ class _LoginScreenState extends State<LoginScreen> {
         username: currentUsername,
       );
 
-      // Настраиваем клиенты
-      apiClient.setAuthToken(accessToken);
-      
-      // Подключаем основной сокет для сообщений
-      debugPrint('🔔 LoginScreen: Подключаю основной сокет для сообщений...');
-      socketClient.setToken(accessToken);
-      socketClient.connect();
-      
-      // Подключаем сокет для звонков
-      debugPrint('🔔 LoginScreen: Подключаю сокет для звонков...');
-      callSocketClient.connect(accessToken);
-      debugPrint('🔔 LoginScreen: Вызов callSocketClient.connect() завершен');
-
       debugPrint('🎉 Login successful: $currentUsername');
-      debugPrint('🔔 Подключен к сокетам сообщений и звонков');
-
+      
       // Navigate to chat list screen after successful login
       if (mounted) {
         Navigator.pushReplacement(

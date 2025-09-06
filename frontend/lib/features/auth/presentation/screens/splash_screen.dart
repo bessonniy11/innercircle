@@ -20,76 +20,33 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _checkAuthStatus();
+    // Небольшая задержка, чтобы UI успел отрисоваться
+    Future.delayed(const Duration(milliseconds: 50), _checkAuthStatus);
   }
 
   /// Проверка состояния аутентификации при запуске
   Future<void> _checkAuthStatus() async {
-    try {
-      // Показываем splash screen минимум 1.5 секунды для лучшего UX
-      await Future.delayed(const Duration(milliseconds: 1500));
+    // Показываем splash screen минимум 1.5 секунды для лучшего UX
+    await Future.delayed(const Duration(milliseconds: 1500));
+    
+    if (!mounted) return;
 
-      final authService = await AuthService.getInstance();
-      authService.printCurrentState();
+    final authService = Provider.of<AuthService>(context, listen: false);
+    
+    // Проверяем, есть ли валидный refresh token
+    final hasRefreshToken = await authService.hasValidRefreshToken();
 
-      if (!mounted) return;
-
-      final isAuthenticated = await authService.isAuthenticated;
-      if (isAuthenticated) {
-        // Пользователь авторизован, настраиваем клиенты и переходим к чатам
-        await _setupAuthenticatedUser(authService);
+    if (hasRefreshToken) {
+      // Если есть, сразу пытаемся обновить токен доступа
+      final refreshed = await authService.refreshAccessToken();
+      if (refreshed) {
+        // Если успешно, сокеты подключатся автоматически через слушателей
+        _navigateToChatList();
       } else {
-        // Пользователь не авторизован, переходим к экрану входа
         _navigateToLogin();
       }
-    } catch (e) {
-      debugPrint('🔥 Error during auth check: $e');
-      if (mounted) {
-        _navigateToLogin();
-      }
-    }
-  }
-
-  /// Настройка для авторизованного пользователя
-  Future<void> _setupAuthenticatedUser(AuthService authService) async {
-    try {
-      final apiClient = Provider.of<ApiClient>(context, listen: false);
-      final socketClient = Provider.of<SocketClient>(context, listen: false);
-      final callSocketClient = Provider.of<CallSocketClient>(context, listen: false);
-
-      final token = await authService.getAccessToken();
-      final userId = await authService.getUserId();
-      final username = await authService.getUsername();
-
-      if (token == null || userId == null || username == null) {
-        throw Exception('Missing auth data');
-      }
-
-      // Настраиваем API клиент
-      apiClient.setAuthToken(token);
-      
-      // Настраиваем Socket клиент
-      debugPrint('🔔 SplashScreen: Подключаю основной сокет для сообщений...');
-      socketClient.setToken(token);
-      socketClient.connect();
-
-      // Настраиваем Call Socket клиент
-      debugPrint('🔔 SplashScreen: Подключаю сокет для звонков...');
-      callSocketClient.connect(token);
-      debugPrint('🔔 SplashScreen: Вызов callSocketClient.connect() завершен');
-
-      debugPrint('🎉 Auto-login successful for user: $username');
-
-      if (mounted) {
-        _navigateToChatList(userId, username);
-      }
-    } catch (e) {
-      debugPrint('🔥 Error setting up authenticated user: $e');
-      // При ошибке очищаем данные и переходим к логину
-      await authService.clearAuthData();
-      if (mounted) {
-        _navigateToLogin();
-      }
+    } else {
+      _navigateToLogin();
     }
   }
 
@@ -102,7 +59,17 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   /// Переход к списку чатов
-  void _navigateToChatList(String userId, String username) {
+  void _navigateToChatList() async {
+    if (!mounted) return;
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final userId = await authService.getUserId();
+    final username = await authService.getUsername();
+
+    if (userId == null || username == null) {
+      _navigateToLogin();
+      return;
+    }
+
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -166,7 +133,7 @@ class _SplashScreenState extends State<SplashScreen> {
             
             // Текст загрузки
             const Text(
-              'Проверка авторизации...',
+              'Подключение...',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.white70,

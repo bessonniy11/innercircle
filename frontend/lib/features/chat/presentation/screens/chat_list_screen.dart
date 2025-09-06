@@ -328,24 +328,11 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
   /// Logout функциональность
   Future<void> _logout() async {
     try {
-      final authService = await AuthService.getInstance();
-      final apiClient = Provider.of<ApiClient>(context, listen: false);
-      final socketClient = Provider.of<SocketClient>(context, listen: false);
-      final callSocketClient = Provider.of<CallSocketClient>(context, listen: false);
-
-      // Отключаем WebSocket и очищаем токен
-      debugPrint('🔔 ChatListScreen: Отключаю основной сокет для сообщений...');
-      socketClient.clearToken();
+      final authService = Provider.of<AuthService>(context, listen: false);
       
-      debugPrint('🔔 ChatListScreen: Отключаю сокет для звонков...');
-      callSocketClient.disconnect();
-      debugPrint('🔔 ChatListScreen: Вызов callSocketClient.disconnect() завершен');
-      
-      // Очищаем токены из клиентов
-      apiClient.removeAuthToken();
-      
-      // Очищаем сохраненные данные
-      await authService.clearAuthData();
+      // Просто вызываем logout. AuthService уведомит всех слушателей (сокеты)
+      // и очистит данные.
+      await authService.logout();
       
       debugPrint('🚪 Logout successful');
 

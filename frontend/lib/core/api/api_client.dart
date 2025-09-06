@@ -1,16 +1,24 @@
 import 'package:dio/dio.dart';
-import 'package:jwt_decoder/jwt_decoder.dart';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:zvonilka/core/config/api_config.dart';
 import 'package:zvonilka/core/services/auth_service.dart';
 
+// Приватный хелпер-класс для хранения "зависших" запросов
+class _RequestToRetry {
+  final DioException error;
+  final ErrorInterceptorHandler handler;
+
+  _RequestToRetry({required this.error, required this.handler});
+}
+
 class ApiClient {
   late Dio _dio;
-  late AuthService _authService;
+  final AuthService _authService;
+  bool _isRefreshing = false;
+  final List<_RequestToRetry> _subscribers = [];
 
-  ApiClient() {
-    _authService = AuthService();
+  ApiClient(this._authService) {
     _dio = Dio(
       BaseOptions(
         baseUrl: ApiConfig.currentBackendUrl,
@@ -23,56 +31,67 @@ class ApiClient {
       ),
     );
 
-    // Добавляем interceptor для автоматического обновления токенов
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          // Добавляем токен к каждому запросу
           final token = await _authService.getAccessToken();
           if (token != null) {
             options.headers['Authorization'] = 'Bearer $token';
           }
-          handler.next(options);
+          return handler.next(options);
         },
-        onError: (error, handler) async {
-          // Если получили 401, пытаемся обновить токен
+        onError: (DioException error, ErrorInterceptorHandler handler) async {
           if (error.response?.statusCode == 401) {
-            debugPrint('🔐 401 error, attempting to refresh token...');
-            
-            final refreshed = await _authService.refreshAccessToken();
-            if (refreshed) {
-              // Повторяем запрос с новым токеном
+            _subscribers.add(_RequestToRetry(error: error, handler: handler));
+
+            if (!_isRefreshing) {
+              _isRefreshing = true;
+              
+              final refreshed = await _authService.refreshAccessToken();
               final newToken = await _authService.getAccessToken();
-              if (newToken != null) {
-                error.requestOptions.headers['Authorization'] = 'Bearer $newToken';
-                
-                // Повторяем оригинальный запрос
-                try {
-                  final response = await _dio.fetch(error.requestOptions);
-                  handler.resolve(response);
-                  return;
-                } catch (e) {
-                  handler.reject(error);
-                  return;
-                }
+              _isRefreshing = false;
+
+              if (refreshed && newToken != null) {
+                _retryAllSubscribers(newToken);
+              } else {
+                _rejectAllSubscribers(error);
+                _authService.logout();
               }
+              _subscribers.clear();
             }
+          } else {
+            return handler.next(error);
           }
-          
-          handler.reject(error);
         },
       ),
     );
   }
 
+  void _retryAllSubscribers(String newAccessToken) {
+    for (var subscriber in _subscribers) {
+      final options = subscriber.error.requestOptions;
+      options.headers['Authorization'] = 'Bearer $newAccessToken';
+      _dio.fetch(options).then(
+        (response) => subscriber.handler.resolve(response),
+        onError: (e) => subscriber.handler.reject(e as DioException),
+      );
+    }
+  }
+
+  void _rejectAllSubscribers(DioException error) {
+    for (var subscriber in _subscribers) {
+      subscriber.handler.reject(error);
+    }
+  }
+
   Dio get dio => _dio;
 
   Future<Response> get(String path, {Map<String, dynamic>? queryParameters}) async {
-    return await _dio.get(path, queryParameters: queryParameters);
+    return _dio.get(path, queryParameters: queryParameters);
   }
 
   Future<Response> post(String path, {dynamic data}) async {
-    return await _dio.post(path, data: data);
+    return _dio.post(path, data: data);
   }
 
   void setAuthToken(String token) {
@@ -83,7 +102,6 @@ class ApiClient {
     _dio.options.headers.remove('Authorization');
   }
 
-  // Helper to decode JWT token and extract payload
   Map<String, dynamic> decodeJwtToken(String token) {
     return JwtDecoder.decode(token);
   }

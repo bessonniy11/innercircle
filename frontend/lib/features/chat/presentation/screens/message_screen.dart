@@ -88,13 +88,13 @@ class _MessageScreenState extends State<MessageScreen> {
 
   /// Отмечает сообщения в текущем чате как прочитанные
   void _markMessagesAsRead() {
-    widget.socketClient.socket.emit('markAsRead', {
+    widget.socketClient.socket?.emit('markAsRead', {
       'chatId': widget.chatId,
     });
   }
 
   void _setupSocketListeners() {
-    widget.socketClient.socket.on('messageReceived', (data) {
+    widget.socketClient.socket?.on('messageReceived', (data) {
       // Parse message directly from data, as backend sends full message object
       final receivedMessage = Message.fromJson(data);
 
@@ -139,7 +139,7 @@ class _MessageScreenState extends State<MessageScreen> {
       _scrollToBottom();
 
       // Emit message to the backend
-      widget.socketClient.socket.emit('sendMessage', {
+      widget.socketClient.socket?.emit('sendMessage', {
         'chatId': widget.chatId,
         'content': messageContent,
       });

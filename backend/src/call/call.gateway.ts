@@ -280,59 +280,52 @@ import { JwtService } from '@nestjs/jwt';
      */
     @SubscribeMessage('end_call')
     async handleEndCall(
-      @MessageBody() data: { callId: string },
-      @ConnectedSocket() client: Socket
+      @MessageBody() data: { callId: string; remoteUserId?: string }, // remoteUserId опционален для обратной совместимости
+      @ConnectedSocket() client: Socket,
     ) {
       try {
         const user = client.data.user;
-        const { callId } = data;
+        const { callId, remoteUserId } = data;
         const userId = user.id || user.sub;
 
         this.logger.log(`Пользователь ${userId} завершает звонок ${callId}`);
 
-        // ИСПРАВЛЕНИЕ: Правильно определяем ID другого участника
+        // Определяем ID другого участника
         let otherUserId: string | undefined;
-        
-        if (callId.startsWith('call_')) {
-          // callId: call_timestamp_callerId
-          const parts = callId.split('_');
-          if (parts.length >= 3) {
-            const callerId = parts[2];
-            
-            // Если текущий пользователь - звонящий, то другой участник - получатель
-            if (userId === callerId) {
-              // Звонящий завершает звонок - нужно найти получателя
-              // Для этого нужно знать remoteUserId, но его нет в callId
-              // Поэтому будем отправлять call_ended всем подключенным пользователям кроме себя
-              this.logger.log(`Звонящий ${userId} завершает звонок, уведомляем всех остальных`);
-              
-              for (const [socketUserId, socket] of this.userSockets.entries()) {
-                if (socketUserId !== userId) {
-                  await socket.emit('call_ended', { callId });
-                  this.logger.log(`Уведомление о завершении звонка отправлено пользователю ${socketUserId}`);
-                }
+
+        // НОВЫЙ, ПРИОРИТЕТНЫЙ СПОСОБ: Если frontend передал remoteUserId, используем его
+        if (remoteUserId) {
+          otherUserId = remoteUserId;
+          this.logger.log(`Целевой пользователь для end_call определен напрямую: ${otherUserId}`);
+        } else {
+          // СТАРЫЙ СПОСОБ (fallback): Извлекаем ID из callId
+          this.logger.warn(`Поле remoteUserId не было передано в end_call, пытаюсь извлечь из callId`);
+          if (callId && callId.startsWith('call_')) {
+            const parts = callId.split('_');
+            if (parts.length >= 3) {
+              const callerId = parts[2];
+              // Если текущий юзер - звонящий, то мы не знаем, кто получатель.
+              // Если текущий юзер - получатель, то другой - звонящий.
+              if (userId !== callerId) {
+                otherUserId = callerId;
               }
-              return;
-            } else {
-              // Текущий пользователь - получатель, другой участник - звонящий
-              otherUserId = callerId;
             }
           }
-        } else {
-          this.logger.error(`Неверный формат callId: ${callId}`);
-          return;
         }
-        
-        // Отправляем уведомление конкретному пользователю
+
         if (otherUserId) {
           const otherUserSocket = this.userSockets.get(otherUserId);
-          
           if (otherUserSocket) {
             await otherUserSocket.emit('call_ended', { callId });
             this.logger.log(`Уведомление о завершении звонка отправлено пользователю ${otherUserId}`);
           } else {
             this.logger.warn(`Пользователь ${otherUserId} не подключен к WebSocket`);
           }
+        } else {
+          // Если мы не смогли определить второго участника (например, звонящий завершил звонок)
+          // Рассылаем всем, кроме себя, как раньше. Это не идеально, но надежно.
+          this.logger.log(`Не удалось определить второго участника, уведомляем всех остальных`);
+          client.broadcast.emit('call_ended', { callId });
         }
       } catch (error) {
         this.logger.error(`Ошибка обработки завершения звонка: ${error.message}`);
@@ -554,6 +547,12 @@ import { JwtService } from '@nestjs/jwt';
         const { callId, candidate } = data;
         const userId = user.id || user.sub;
         
+        // ИСПРАВЛЕНИЕ: Добавляем проверку на null callId
+        if (!callId) {
+          this.logger.warn(`Получен ICE кандидат с callId: null от пользователя ${userId}`);
+          return;
+        }
+
         // Определяем целевого пользователя по логике из callId
         let targetUserId: string;
         

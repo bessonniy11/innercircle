@@ -51,8 +51,6 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
 
   @override
   void dispose() {
-    debugPrint('🔔 ActiveCallScreen: dispose() вызван');
-    
     // Останавливаем таймер длительности
     _durationTimer?.cancel();
     _durationTimer = null;
@@ -61,7 +59,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
     try {
       _webrtcService.removeListener(_onCallStateChanged);
     } catch (e) {
-      debugPrint('⚠️ ActiveCallScreen: Ошибка при удалении слушателя WebRTCService: $e');
+      // Игнорируем
     }
     
     // Освобождаем RTCVideoRenderer
@@ -71,17 +69,15 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
         _remoteVideoRenderer = null;
       }
     } catch (e) {
-      debugPrint('⚠️ ActiveCallScreen: Ошибка при освобождении RTCVideoRenderer: $e');
+      // Игнорируем
     }
     
-    debugPrint('🔔 ActiveCallScreen: dispose() завершен');
     super.dispose();
   }
   
   /// Обработчик изменения состояния звонка
   void _onCallStateChanged() {
     if (mounted) {
-      debugPrint('🔔 ActiveCallScreen: Состояние звонка изменилось на: ${_webrtcService.callState.name}');
       
       if (_webrtcService.callState == webrtc.CallState.connected) {
         // Звонок подключен - запускаем таймер
@@ -100,7 +96,6 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
         if (!_isClosing) {
           _isClosing = true; // Устанавливаем флаг
           
-          debugPrint('🔔 ActiveCallScreen: Звонок завершен, планируем закрытие экрана');
           _durationTimer?.cancel();
           
           // Используем addPostFrameCallback, чтобы избежать "click-through".
@@ -110,14 +105,12 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
                 try {
-                  debugPrint('🔔 ActiveCallScreen: Выполняем pop() в post-frame callback');
                   Navigator.of(context).pop();
                 } catch (e) {
-                  debugPrint('⚠️ ActiveCallScreen: Ошибка при pop() в post-frame callback: $e');
                   try {
                     Navigator.of(context).popUntil((route) => route.isFirst);
                   } catch (e2) {
-                    debugPrint('🔥 ActiveCallScreen: Критическая ошибка при popUntil: $e2');
+                    // Игнорируем
                   }
                 }
               }
@@ -161,20 +154,16 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
       _isSpeakerOn = !_isSpeakerOn;
     });
     // TODO: Реализовать переключение динамика
-    debugPrint('🔊 Speaker ${_isSpeakerOn ? "on" : "off"}');
   }
 
   /// Завершение звонка
   void _endCall() async {
-    debugPrint('🔔 ActiveCallScreen: Пользователь завершает звонок');
 
     // Только инициируем завершение звонка. 
     // Экран будет закрыт автоматически в `_onCallStateChanged`, когда изменится состояние.
     // Это предотвращает "призрачные нажатия" на экран, который находится ниже.
     if (!_isClosing) {
       await _webrtcService.endCall();
-    } else {
-      debugPrint('🔔 ActiveCallScreen: Звонок уже в процессе завершения, повторное нажатие игнорируется.');
     }
   }
 

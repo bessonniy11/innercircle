@@ -41,7 +41,6 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
     });
 
     try {
-      debugPrint('🔔 IncomingCallScreen: Принятие звонка...');
       
       // Принимаем звонок через WebRTCService
       final success = await _webrtcService.acceptCall(
@@ -50,7 +49,6 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
       );
 
       if (success) {
-        debugPrint('🔔 IncomingCallScreen: Звонок принят успешно');
         // Переходим на экран активного звонка
         if (mounted) {
           // ИСПРАВЛЕНИЕ: Используем pushReplacement, чтобы заменить текущий экран (IncomingCallScreen)
@@ -68,7 +66,6 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
           );
         }
       } else {
-        debugPrint('⚠️ IncomingCallScreen: Не удалось принять звонок');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Не удалось принять звонок')),
@@ -78,7 +75,6 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
         }
       }
     } catch (e) {
-      debugPrint('🔥 IncomingCallScreen: Ошибка принятия звонка: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Ошибка: $e')),
@@ -102,7 +98,6 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
     });
 
     try {
-      debugPrint('🔔 IncomingCallScreen: Отклонение звонка');
       
       // Отклоняем звонок через WebRTCService
       _webrtcService.rejectCall(widget.callId);
@@ -112,7 +107,6 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
         Navigator.of(context).pop();
       }
     } catch (e) {
-      debugPrint('🔥 IncomingCallScreen: Ошибка отклонения звонка: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Ошибка: $e')),
