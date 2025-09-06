@@ -290,10 +290,41 @@ import { JwtService } from '@nestjs/jwt';
 
         this.logger.log(`Пользователь ${userId} завершает звонок ${callId}`);
 
-        // Извлекаем ID другого участника из callId
-        const parts = callId.split('_');
-        if (parts.length >= 3) {
-          const otherUserId = parts[2];
+        // ИСПРАВЛЕНИЕ: Правильно определяем ID другого участника
+        let otherUserId: string | undefined;
+        
+        if (callId.startsWith('call_')) {
+          // callId: call_timestamp_callerId
+          const parts = callId.split('_');
+          if (parts.length >= 3) {
+            const callerId = parts[2];
+            
+            // Если текущий пользователь - звонящий, то другой участник - получатель
+            if (userId === callerId) {
+              // Звонящий завершает звонок - нужно найти получателя
+              // Для этого нужно знать remoteUserId, но его нет в callId
+              // Поэтому будем отправлять call_ended всем подключенным пользователям кроме себя
+              this.logger.log(`Звонящий ${userId} завершает звонок, уведомляем всех остальных`);
+              
+              for (const [socketUserId, socket] of this.userSockets.entries()) {
+                if (socketUserId !== userId) {
+                  await socket.emit('call_ended', { callId });
+                  this.logger.log(`Уведомление о завершении звонка отправлено пользователю ${socketUserId}`);
+                }
+              }
+              return;
+            } else {
+              // Текущий пользователь - получатель, другой участник - звонящий
+              otherUserId = callerId;
+            }
+          }
+        } else {
+          this.logger.error(`Неверный формат callId: ${callId}`);
+          return;
+        }
+        
+        // Отправляем уведомление конкретному пользователю
+        if (otherUserId) {
           const otherUserSocket = this.userSockets.get(otherUserId);
           
           if (otherUserSocket) {

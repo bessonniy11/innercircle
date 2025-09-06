@@ -29,6 +29,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   bool _isMuted = false;
   bool _isSpeakerOn = false;
   RTCVideoRenderer? _remoteVideoRenderer;
+  bool _isClosing = false; // ИСПРАВЛЕНИЕ: Флаг для предотвращения множественного закрытия экрана
 
   @override
   void initState() {
@@ -50,9 +51,30 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
 
   @override
   void dispose() {
+    debugPrint('🔔 ActiveCallScreen: dispose() вызван');
+    
+    // Останавливаем таймер длительности
     _durationTimer?.cancel();
-    _webrtcService.removeListener(_onCallStateChanged);
-    _remoteVideoRenderer?.dispose();
+    _durationTimer = null;
+    
+    // Убираем слушатель WebRTCService
+    try {
+      _webrtcService.removeListener(_onCallStateChanged);
+    } catch (e) {
+      debugPrint('⚠️ ActiveCallScreen: Ошибка при удалении слушателя WebRTCService: $e');
+    }
+    
+    // Освобождаем RTCVideoRenderer
+    try {
+      if (_remoteVideoRenderer != null) {
+        _remoteVideoRenderer!.dispose();
+        _remoteVideoRenderer = null;
+      }
+    } catch (e) {
+      debugPrint('⚠️ ActiveCallScreen: Ошибка при освобождении RTCVideoRenderer: $e');
+    }
+    
+    debugPrint('🔔 ActiveCallScreen: dispose() завершен');
     super.dispose();
   }
   
@@ -64,25 +86,43 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
       if (_webrtcService.callState == webrtc.CallState.connected) {
         // Звонок подключен - запускаем таймер
         if (_durationTimer == null) {
-          debugPrint('🔔 ActiveCallScreen: Звонок подключен, запускаем таймер');
           _startDurationTimer();
         }
         
         // Настраиваем RTCVideoRenderer для удаленного потока
         if (_webrtcService.remoteStream != null && _remoteVideoRenderer != null) {
-          debugPrint('🔔 ActiveCallScreen: Настраиваем RTCVideoRenderer для удаленного потока');
           _remoteVideoRenderer!.srcObject = _webrtcService.remoteStream;
           setState(() {}); // Обновляем UI
         }
       } else if (_webrtcService.callState == webrtc.CallState.ended || 
                  _webrtcService.callState == webrtc.CallState.error ||
                  _webrtcService.callState == webrtc.CallState.idle) {
-        // Звонок завершен - останавливаем таймер и закрываем экран
-        debugPrint('🔔 ActiveCallScreen: Звонок завершен (статус: ${_webrtcService.callState.name}), закрываем экран');
-        _durationTimer?.cancel();
-        if (mounted) {
-          // Возвращаемся к предыдущему экрану
-          Navigator.of(context).pop();
+        if (!_isClosing) {
+          _isClosing = true; // Устанавливаем флаг
+          
+          debugPrint('🔔 ActiveCallScreen: Звонок завершен, планируем закрытие экрана');
+          _durationTimer?.cancel();
+          
+          // Используем addPostFrameCallback, чтобы избежать "click-through".
+          // Это гарантирует, что Navigator.pop() будет вызван после завершения текущего кадра
+          // и обработки всех событий ввода.
+          if (mounted) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                try {
+                  debugPrint('🔔 ActiveCallScreen: Выполняем pop() в post-frame callback');
+                  Navigator.of(context).pop();
+                } catch (e) {
+                  debugPrint('⚠️ ActiveCallScreen: Ошибка при pop() в post-frame callback: $e');
+                  try {
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  } catch (e2) {
+                    debugPrint('🔥 ActiveCallScreen: Критическая ошибка при popUntil: $e2');
+                  }
+                }
+              }
+            });
+          }
         }
       }
     }
@@ -125,12 +165,16 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   }
 
   /// Завершение звонка
-  void _endCall() {
+  void _endCall() async {
     debugPrint('🔔 ActiveCallScreen: Пользователь завершает звонок');
-    _webrtcService.endCall();
-    if (mounted) {
-      // Возвращаемся к предыдущему экрану
-      Navigator.of(context).pop();
+
+    // Только инициируем завершение звонка. 
+    // Экран будет закрыт автоматически в `_onCallStateChanged`, когда изменится состояние.
+    // Это предотвращает "призрачные нажатия" на экран, который находится ниже.
+    if (!_isClosing) {
+      await _webrtcService.endCall();
+    } else {
+      debugPrint('🔔 ActiveCallScreen: Звонок уже в процессе завершения, повторное нажатие игнорируется.');
     }
   }
 

@@ -41,19 +41,22 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
     });
 
     try {
-      debugPrint('🔔 IncomingCallScreen: Принимаем звонок ${widget.callId}');
+      debugPrint('🔔 IncomingCallScreen: Принятие звонка...');
       
       // Принимаем звонок через WebRTCService
       final success = await _webrtcService.acceptCall(
         widget.callId,
-        widget.callType == 'video' ? CallType.video : CallType.audio, // Используем тип из widget
+        widget.callType == 'video' ? CallType.video : CallType.audio,
       );
 
       if (success) {
         debugPrint('🔔 IncomingCallScreen: Звонок принят успешно');
         // Переходим на экран активного звонка
         if (mounted) {
-          Navigator.push(
+          // ИСПРАВЛЕНИЕ: Используем pushReplacement, чтобы заменить текущий экран (IncomingCallScreen)
+          // на ActiveCallScreen. Это предотвращает возврат к экрану входящего вызова
+          // после завершения звонка.
+          Navigator.pushReplacement(
             context,
             MaterialPageRoute(
               builder: (context) => ActiveCallScreen(
@@ -65,11 +68,13 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
           );
         }
       } else {
-        debugPrint('🔥 IncomingCallScreen: Не удалось принять звонок');
+        debugPrint('⚠️ IncomingCallScreen: Не удалось принять звонок');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Не удалось принять звонок')),
           );
+          // Закрываем экран
+          Navigator.of(context).pop();
         }
       }
     } catch (e) {
@@ -97,13 +102,13 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
     });
 
     try {
-      debugPrint('🔔 IncomingCallScreen: Отклоняем звонок ${widget.callId}');
+      debugPrint('🔔 IncomingCallScreen: Отклонение звонка');
       
       // Отклоняем звонок через WebRTCService
       _webrtcService.rejectCall(widget.callId);
 
       if (mounted) {
-        // Возвращаемся к предыдущему экрану
+        // Закрываем экран
         Navigator.of(context).pop();
       }
     } catch (e) {
