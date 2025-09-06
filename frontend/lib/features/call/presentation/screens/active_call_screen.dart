@@ -5,6 +5,12 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/services/webrtc_service.dart' as webrtc;
 
+// ИСПРАВЛЕНИЕ: Импортируем foundation для kIsWeb
+import 'package:flutter/foundation.dart' show kIsWeb;
+
+// ИСПРАВЛЕНИЕ: Импортируем html для AudioElement, если платформа - веб
+import 'dart:html' as html;
+
 /// Экран для отображения активного звонка
 class ActiveCallScreen extends StatefulWidget {
   final String remoteUserId;
@@ -30,6 +36,9 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   bool _isSpeakerOn = false;
   RTCVideoRenderer? _remoteVideoRenderer;
   bool _isClosing = false; // ИСПРАВЛЕНИЕ: Флаг для предотвращения множественного закрытия экрана
+  
+  // ИСПРАВЛЕНИЕ: Добавляем "невидимый" аудио-элемент для обхода политики autoplay в вебе
+  html.AudioElement? _audioElement;
 
   @override
   void initState() {
@@ -39,11 +48,25 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
     // Инициализация RTCVideoRenderer для удаленного потока
     _remoteVideoRenderer = RTCVideoRenderer();
     _remoteVideoRenderer!.initialize();
+
+    // ИСПРАВЛЕНИЕ: Инициализируем аудио-элемент для веба
+    if (kIsWeb) {
+      _audioElement = html.AudioElement()
+        ..autoplay = true
+        ..controls = false;
+      // ИСПРАВЛЕНИЕ: playsInline - это атрибут, а не свойство
+      _audioElement!.setAttribute('playsinline', 'true');
+      _audioElement!.style.display = 'none'; // Скрываем элемент
+      html.document.body?.append(_audioElement!);
+    }
     
     // Слушаем изменения состояния звонка
     _webrtcService.addListener(_onCallStateChanged);
     
-    // Проверяем текущее состояние
+    // ИСПРАВЛЕНИЕ: Немедленно проверяем и подключаем поток, если он уже доступен
+    _attachRemoteStream();
+
+    // Проверяем текущее состояние для таймера
     if (_webrtcService.callState == webrtc.CallState.connected) {
       _startDurationTimer();
     }
@@ -72,12 +95,40 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
       // Игнорируем
     }
     
+    // ИСПРАВЛЕНИЕ: Удаляем аудио-элемент из DOM при выходе с экрана
+    if (kIsWeb) {
+      _audioElement?.remove();
+      _audioElement = null;
+    }
+    
     super.dispose();
   }
   
+  // ИСПРАВЛЕНИЕ: Выносим логику подключения потока в отдельный метод
+  /// Подключение удаленного потока к RTCVideoRenderer
+  void _attachRemoteStream() {
+    if (_webrtcService.remoteStream != null && _remoteVideoRenderer?.srcObject != _webrtcService.remoteStream) {
+      final remoteStream = _webrtcService.remoteStream;
+      _remoteVideoRenderer!.srcObject = remoteStream;
+      
+      // ИСПРАВЛЕНИЕ: Подключаем "родной" jsStream к нашему аудио-элементу в вебе
+      if (kIsWeb && _audioElement != null) {
+        // Используем dynamic, чтобы получить доступ к веб-специфичному свойству jsStream
+        _audioElement!.srcObject = (remoteStream as dynamic).jsStream;
+        _audioElement!.play(); // Пытаемся запустить воспроизведение
+      }
+
+      if (mounted) {
+        setState(() {}); // Обновляем UI
+      }
+    }
+  }
+
   /// Обработчик изменения состояния звонка
   void _onCallStateChanged() {
     if (mounted) {
+      
+      final newRemoteStream = _webrtcService.remoteStream;
       
       if (_webrtcService.callState == webrtc.CallState.connected) {
         // Звонок подключен - запускаем таймер
@@ -86,10 +137,8 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
         }
         
         // Настраиваем RTCVideoRenderer для удаленного потока
-        if (_webrtcService.remoteStream != null && _remoteVideoRenderer != null) {
-          _remoteVideoRenderer!.srcObject = _webrtcService.remoteStream;
-          setState(() {}); // Обновляем UI
-        }
+        _attachRemoteStream();
+
       } else if (_webrtcService.callState == webrtc.CallState.ended || 
                  _webrtcService.callState == webrtc.CallState.error ||
                  _webrtcService.callState == webrtc.CallState.idle) {
