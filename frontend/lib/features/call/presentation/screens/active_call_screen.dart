@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'package:provider/provider.dart';
+import 'package:proximity_sensor/proximity_sensor.dart';
 import '../../../../core/services/webrtc_service.dart' as webrtc;
 
 // ИСПРАВЛЕНИЕ: Импортируем foundation для kIsWeb
@@ -37,6 +38,10 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   final RTCVideoRenderer _remoteVideoRenderer = RTCVideoRenderer();
   bool _isClosing = false; // ИСПРАВЛЕНИЕ: Флаг для предотвращения множественного закрытия экрана
   
+  // Для датчика приближения
+  late StreamSubscription<dynamic> _proximitySubscription;
+  bool _isNear = false;
+
   // ИСПРАВЛЕНИЕ: Используем наш WebAudioManager
   late final WebAudioManager _audioManager;
 
@@ -64,10 +69,16 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
     if (_webrtcService.callState == webrtc.CallState.connected) {
       _startDurationTimer();
     }
+
+    // Инициализация датчика приближения
+    _listenToProximitySensor();
   }
 
   @override
   void dispose() {
+    // Отписываемся от датчика приближения
+    _proximitySubscription.cancel();
+
     // Останавливаем таймер длительности
     _durationTimer?.cancel();
     _durationTimer = null;
@@ -89,6 +100,21 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
     }
     
     super.dispose();
+  }
+
+  /// Инициализация и подписка на события датчика приближения
+  void _listenToProximitySensor() {
+    // Работает только на мобильных устройствах
+    if (!kIsWeb) {
+      _proximitySubscription = ProximitySensor.events.listen((int event) {
+        if (mounted) {
+          setState(() {
+            // event > 0 означает, что объект близко (ухо у телефона)
+            _isNear = (event > 0) ? true : false;
+          });
+        }
+      });
+    }
   }
   
   // ИСПРАВЛЕНИЕ: Выносим логику подключения потока в отдельный метод
@@ -123,8 +149,6 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   /// Обработчик изменения состояния звонка
   void _onCallStateChanged() {
     if (mounted) {
-      
-      final newRemoteStream = _webrtcService.remoteStream;
       
       if (_webrtcService.callState == webrtc.CallState.connected) {
         // Звонок подключен - запускаем таймер
@@ -214,115 +238,125 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF4CAF50),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Верхняя часть с информацией о звонке
-            Expanded(
-              flex: 2,
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // RTCVideoView для удаленного потока (аудио)
-                    if (_webrtcService.remoteStream != null)
-                      Container(
-                        width: 200,
-                        height: 150,
-                        decoration: BoxDecoration(
-                          color: Colors.black87,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white, width: 2),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          // ИСПРАВЛЕНИЕ: Возвращаем RTCVideoView
-                          child: RTCVideoView(
-                            _remoteVideoRenderer,
-                            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: const Color(0xFF4CAF50),
+          body: SafeArea(
+            child: Column(
+              children: [
+                // Верхняя часть с информацией о звонке
+                Expanded(
+                  flex: 2,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // RTCVideoView для удаленного потока (аудио)
+                        if (_webrtcService.remoteStream != null)
+                          Container(
+                            width: 200,
+                            height: 150,
+                            decoration: BoxDecoration(
+                              color: Colors.black87,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              // ИСПРАВЛЕНИЕ: Возвращаем RTCVideoView
+                              child: RTCVideoView(
+                                _remoteVideoRenderer,
+                                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                              ),
+                            ),
+                          )
+                        else
+                          // Аватар собеседника (если поток не готов)
+                          CircleAvatar(
+                            radius: 60,
+                            backgroundColor: Colors.white,
+                            child: Text(
+                              widget.remoteUsername[0].toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 48,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF4CAF50),
+                              ),
+                            ),
                           ),
-                        ),
-                      )
-                    else
-                      // Аватар собеседника (если поток не готов)
-                      CircleAvatar(
-                        radius: 60,
-                        backgroundColor: Colors.white,
-                        child: Text(
-                          widget.remoteUsername[0].toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 48,
+                        const SizedBox(height: 24),
+
+                        // Имя собеседника
+                        Text(
+                          widget.remoteUsername,
+                          style: const TextStyle(
+                            fontSize: 28,
                             fontWeight: FontWeight.bold,
-                            color: const Color(0xFF4CAF50),
+                            color: Colors.white,
                           ),
                         ),
-                      ),
-                    const SizedBox(height: 24),
+                        const SizedBox(height: 16),
 
-                    // Имя собеседника
-                    Text(
-                      widget.remoteUsername,
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+                        // Длительность звонка
+                        Text(
+                          _formatDuration(_callDuration),
+                          style: const TextStyle(
+                            fontSize: 24,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-
-                    // Длительность звонка
-                    Text(
-                      _formatDuration(_callDuration),
-                      style: const TextStyle(
-                        fontSize: 24,
-                        color: Colors.white70,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
 
-            // Нижняя часть с кнопками управления
-            Expanded(
-              flex: 1,
-              child: Container(
-                padding: const EdgeInsets.all(32),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    // Кнопка микрофона
-                    _buildControlButton(
-                      icon: _isMuted ? Icons.mic_off : Icons.mic,
-                      color: _isMuted ? Colors.red : Colors.white,
-                      onPressed: _toggleMute,
-                      label: _isMuted ? 'Включить' : 'Выключить',
-                    ),
+                // Нижняя часть с кнопками управления
+                Expanded(
+                  flex: 1,
+                  child: Container(
+                    padding: const EdgeInsets.all(32),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        // Кнопка микрофона
+                        _buildControlButton(
+                          icon: _isMuted ? Icons.mic_off : Icons.mic,
+                          color: _isMuted ? Colors.red : Colors.white,
+                          onPressed: _toggleMute,
+                          label: _isMuted ? 'Включить' : 'Выключить',
+                        ),
 
-                    // Кнопка завершения
-                    _buildControlButton(
-                      icon: Icons.call_end,
-                      color: Colors.red,
-                      onPressed: _endCall,
-                      label: 'Завершить',
-                    ),
+                        // Кнопка завершения
+                        _buildControlButton(
+                          icon: Icons.call_end,
+                          color: Colors.red,
+                          onPressed: _endCall,
+                          label: 'Завершить',
+                        ),
 
-                    // Кнопка динамика
-                    _buildControlButton(
-                      icon: _isSpeakerOn ? Icons.volume_up : Icons.volume_down,
-                      color: _isSpeakerOn ? Colors.blue : Colors.white,
-                      onPressed: _toggleSpeaker,
-                      label: _isSpeakerOn ? 'Динамик' : 'Трубка',
+                        // Кнопка динамика
+                        _buildControlButton(
+                          icon: _isSpeakerOn ? Icons.volume_up : Icons.volume_down,
+                          color: _isSpeakerOn ? Colors.blue : Colors.white,
+                          onPressed: _toggleSpeaker,
+                          label: _isSpeakerOn ? 'Динамик' : 'Трубка',
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
+        if (_isNear)
+          AbsorbPointer(
+            child: Container(
+              color: Colors.black,
+            ),
+          ),
+      ],
     );
   }
 
