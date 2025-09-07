@@ -39,7 +39,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   bool _isClosing = false; // ИСПРАВЛЕНИЕ: Флаг для предотвращения множественного закрытия экрана
   
   // Для датчика приближения
-  late StreamSubscription<dynamic> _proximitySubscription;
+  StreamSubscription<dynamic>? _proximitySubscription;
   bool _isNear = false;
 
   // ИСПРАВЛЕНИЕ: Используем наш WebAudioManager
@@ -77,7 +77,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   @override
   void dispose() {
     // Отписываемся от датчика приближения
-    _proximitySubscription.cancel();
+    _proximitySubscription?.cancel();
 
     // Останавливаем таймер длительности
     _durationTimer?.cancel();

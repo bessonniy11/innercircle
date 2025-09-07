@@ -72,8 +72,8 @@ class MyApp extends StatelessWidget {
             Provider.of<AuthService>(context, listen: false),
           ),
         ),
-        // SocketClient зависит от AuthService
-        Provider<SocketClient>(
+        // SocketClient зависит от AuthService и должен быть ChangeNotifierProvider
+        ChangeNotifierProvider<SocketClient>(
           create: (context) => SocketClient(
             Provider.of<AuthService>(context, listen: false),
           ),
