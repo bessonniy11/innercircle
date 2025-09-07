@@ -54,6 +54,9 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
     // Вызываем асинхронную инициализацию видео-рендерера
     _initializeRenderer();
     
+    // Устанавливаем начальное состояние динамика (выключен)
+    _webrtcService.setSpeakerphoneOn(false);
+
     // Слушаем изменения состояния звонка
     _webrtcService.addListener(_onCallStateChanged);
     
@@ -187,7 +190,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
     setState(() {
       _isMuted = !_isMuted;
     });
-    _webrtcService.toggleMicrophone();
+    _webrtcService.setMicrophoneMute(_isMuted);
   }
 
   /// Переключение динамика
@@ -195,7 +198,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
     setState(() {
       _isSpeakerOn = !_isSpeakerOn;
     });
-    // TODO: Реализовать переключение динамика
+    _webrtcService.setSpeakerphoneOn(_isSpeakerOn);
   }
 
   /// Завершение звонка

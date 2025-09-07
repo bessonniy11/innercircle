@@ -301,13 +301,31 @@ class WebRTCService extends ChangeNotifier {
     }
   }
 
-  // Включение/выключение микрофона
-  void toggleMicrophone() {
+  /// Включает или выключает микрофон.
+  ///
+  /// [mute] - `true` чтобы выключить микрофон, `false` чтобы включить.
+  void setMicrophoneMute(bool mute) {
     if (_localStream != null) {
       final audioTrack = _localStream!.getAudioTracks().first;
       if (audioTrack != null) {
-        audioTrack.enabled = !audioTrack.enabled;
-        notifyListeners();
+        audioTrack.enabled = !mute;
+        // Уведомляем слушателей, если нужно обновить UI, 
+        // хотя в данном случае UI обновляется на самом экране.
+        // notifyListeners(); 
+      }
+    }
+  }
+
+  /// Переключает вывод звука на динамик громкой связи.
+  ///
+  /// [enabled] - `true` чтобы включить громкую связь, `false` чтобы выключить.
+  Future<void> setSpeakerphoneOn(bool enabled) async {
+    // Helper.setSpeakerphoneOn() работает только на мобильных устройствах
+    if (!kIsWeb) {
+      try {
+        await Helper.setSpeakerphoneOn(enabled);
+      } catch (e) {
+        // Игнорируем ошибку, если платформа не поддерживает эту функцию
       }
     }
   }
