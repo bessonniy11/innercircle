@@ -54,9 +54,34 @@ class WebRTCService extends ChangeNotifier {
   // Конфигурация WebRTC (по умолчанию)
   Map<String, dynamic> _rtcConfiguration = {
     'iceServers': [
-      {'urls': 'stun:5.8.76.33:3478'}, // НАШ STUN сервер (приоритетный)
-      {'urls': 'stun:stun.l.google.com:19302'}, // Fallback Google STUN
-      {'urls': 'stun:stun1.l.google.com:19302'}, // Fallback Google STUN
+      // Default STUN servers - быстрый способ найти прямой путь
+      {'urls': 'stun:stun.l.google.com:19302'},
+      {'urls': 'stun:stun1.l.google.com:19302'},
+
+      // Public TURN servers for NAT traversal
+      // Добавляем несколько серверов для надежности.
+      // Используем порты 80, 443, 3478, чтобы повысить шансы на обход файрволов.
+      {
+        'urls': [
+          'turn:openrelay.metered.ca:80',
+          'turn:openrelay.metered.ca:443'
+        ],
+        'username': 'openrelayproject',
+        'credential': 'openrelayproject',
+      },
+      {
+        'urls': [
+          "turn:stun.nextcloud.com:443",
+          "turn:turn.nextcloud.com:443"
+        ],
+        'username': "",
+        'credential': ""
+      },
+      {
+        'urls': "turn:global.turn.twilio.com:3478?transport=udp",
+        'username': "YOUR_TWILIO_ACCOUNT_SID", // Placeholder
+        'credential': "YOUR_TWILIO_AUTH_TOKEN" // Placeholder
+      }
     ],
     'iceCandidatePoolSize': 10,
   };

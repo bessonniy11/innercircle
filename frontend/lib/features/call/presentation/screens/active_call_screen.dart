@@ -8,8 +8,8 @@ import '../../../../core/services/webrtc_service.dart' as webrtc;
 // ИСПРАВЛЕНИЕ: Импортируем foundation для kIsWeb
 import 'package:flutter/foundation.dart' show kIsWeb;
 
-// ИСПРАВЛЕНИЕ: Импортируем html для AudioElement, если платформа - веб
-import 'dart:html' as html;
+// ИСПРАВЛЕНИЕ: Импортируем наш новый менеджер с условным экспортом
+import '../utils/web_audio_manager.dart';
 
 /// Экран для отображения активного звонка
 class ActiveCallScreen extends StatefulWidget {
@@ -34,38 +34,29 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   Timer? _durationTimer;
   bool _isMuted = false;
   bool _isSpeakerOn = false;
-  RTCVideoRenderer? _remoteVideoRenderer;
+  final RTCVideoRenderer _remoteVideoRenderer = RTCVideoRenderer();
   bool _isClosing = false; // ИСПРАВЛЕНИЕ: Флаг для предотвращения множественного закрытия экрана
   
-  // ИСПРАВЛЕНИЕ: Добавляем "невидимый" аудио-элемент для обхода политики autoplay в вебе
-  html.AudioElement? _audioElement;
+  // ИСПРАВЛЕНИЕ: Используем наш WebAudioManager
+  late final WebAudioManager _audioManager;
 
   @override
   void initState() {
     super.initState();
     _webrtcService = Provider.of<webrtc.WebRTCService>(context, listen: false);
     
-    // Инициализация RTCVideoRenderer для удаленного потока
-    _remoteVideoRenderer = RTCVideoRenderer();
-    _remoteVideoRenderer!.initialize();
-
-    // ИСПРАВЛЕНИЕ: Инициализируем аудио-элемент для веба
+    // ИСПРАВЛЕНИЕ: Инициализируем аудио-менеджер для веба СИНХРОННО
     if (kIsWeb) {
-      _audioElement = html.AudioElement()
-        ..autoplay = true
-        ..controls = false;
-      // ИСПРАВЛЕНИЕ: playsInline - это атрибут, а не свойство
-      _audioElement!.setAttribute('playsinline', 'true');
-      _audioElement!.style.display = 'none'; // Скрываем элемент
-      html.document.body?.append(_audioElement!);
+      _audioManager = WebAudioManager();
+      _audioManager.createAudioElement();
     }
+
+    // Вызываем асинхронную инициализацию видео-рендерера
+    _initializeRenderer();
     
     // Слушаем изменения состояния звонка
     _webrtcService.addListener(_onCallStateChanged);
     
-    // ИСПРАВЛЕНИЕ: Немедленно проверяем и подключаем поток, если он уже доступен
-    _attachRemoteStream();
-
     // Проверяем текущее состояние для таймера
     if (_webrtcService.callState == webrtc.CallState.connected) {
       _startDurationTimer();
@@ -78,6 +69,10 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
     _durationTimer?.cancel();
     _durationTimer = null;
     
+    // ИСПРАВЛЕНИЕ: Безопасно освобождаем ресурсы рендерера
+    _remoteVideoRenderer.srcObject = null;
+    _remoteVideoRenderer.dispose();
+    
     // Убираем слушатель WebRTCService
     try {
       _webrtcService.removeListener(_onCallStateChanged);
@@ -85,20 +80,9 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
       // Игнорируем
     }
     
-    // Освобождаем RTCVideoRenderer
-    try {
-      if (_remoteVideoRenderer != null) {
-        _remoteVideoRenderer!.dispose();
-        _remoteVideoRenderer = null;
-      }
-    } catch (e) {
-      // Игнорируем
-    }
-    
-    // ИСПРАВЛЕНИЕ: Удаляем аудио-элемент из DOM при выходе с экрана
+    // ИСПРАВЛЕНИЕ: Удаляем аудио-элемент через менеджер
     if (kIsWeb) {
-      _audioElement?.remove();
-      _audioElement = null;
+      _audioManager.dispose();
     }
     
     super.dispose();
@@ -107,20 +91,29 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   // ИСПРАВЛЕНИЕ: Выносим логику подключения потока в отдельный метод
   /// Подключение удаленного потока к RTCVideoRenderer
   void _attachRemoteStream() {
-    if (_webrtcService.remoteStream != null && _remoteVideoRenderer?.srcObject != _webrtcService.remoteStream) {
+    if (_webrtcService.remoteStream != null && _remoteVideoRenderer.srcObject != _webrtcService.remoteStream) {
       final remoteStream = _webrtcService.remoteStream;
-      _remoteVideoRenderer!.srcObject = remoteStream;
+      _remoteVideoRenderer.srcObject = remoteStream;
       
-      // ИСПРАВЛЕНИЕ: Подключаем "родной" jsStream к нашему аудио-элементу в вебе
-      if (kIsWeb && _audioElement != null) {
-        // Используем dynamic, чтобы получить доступ к веб-специфичному свойству jsStream
-        _audioElement!.srcObject = (remoteStream as dynamic).jsStream;
-        _audioElement!.play(); // Пытаемся запустить воспроизведение
+      // ИСПРАВЛЕНИЕ: Подключаем поток через менеджер в вебе
+      if (kIsWeb) {
+        _audioManager.attachStream(remoteStream!);
       }
 
       if (mounted) {
         setState(() {}); // Обновляем UI
       }
+    }
+  }
+
+  // ИСПРАВЛЕНИЕ: Новый асинхронный метод для инициализации
+  Future<void> _initializeRenderer() async {
+    await _remoteVideoRenderer.initialize();
+    
+    // ИСПРАВЛЕНИЕ: Немедленно проверяем и подключаем поток, если он уже доступен
+    // Это нужно делать только после initialize()
+    if (mounted) {
+       _attachRemoteStream();
     }
   }
 
@@ -242,8 +235,9 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(10),
+                          // ИСПРАВЛЕНИЕ: Возвращаем RTCVideoView
                           child: RTCVideoView(
-                            _remoteVideoRenderer!,
+                            _remoteVideoRenderer,
                             objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
                           ),
                         ),
