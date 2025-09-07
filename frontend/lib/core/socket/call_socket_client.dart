@@ -107,6 +107,11 @@ class CallSocketClient with ChangeNotifier {
     });
   }
 
+  /// Отписка от события
+  void off(String event) {
+    _socket?.off(event);
+  }
+
   @override
   void dispose() {
     _authService.removeListener(_handleAuthChange);

@@ -144,10 +144,14 @@ class WebRTCService extends ChangeNotifier {
   }
 
   void _removeSocketListeners() {
-    // Здесь мы должны были бы отписаться, но текущая реализация 
-    // _callSocketClient.on() не предоставляет метода для отписки.
-    // При пересоздании сокета в CallSocketClient старые слушатели удаляются,
-    // так что текущая архитектура это прощает. Оставляем для будущих улучшений.
+    _callSocketClient.off('incoming_call');
+    _callSocketClient.off('call_accepted');
+    _callSocketClient.off('call_rejected');
+    _callSocketClient.off('call_ended');
+    _callSocketClient.off('ice_candidate');
+    _callSocketClient.off('sdp_offer');
+    _callSocketClient.off('sdp_answer');
+    _callSocketClient.off('call_initiated');
   }
 
   // Инициация звонка
