@@ -22,19 +22,15 @@ class ApiConfig {
     // Проверяем переменную окружения API_URL
     const apiUrl = String.fromEnvironment('API_URL', defaultValue: '');
     if (apiUrl.isNotEmpty) {
-      debugPrint('🌐 Using API_URL from environment: $apiUrl');
       return apiUrl;
     }
     
     // Если API_URL не задан, используем fallback
     if (isDevelopment) {
       const fallbackUrl = 'http://localhost:3000';
-      debugPrint('🌐 Using fallback URL for development: $fallbackUrl');
       return fallbackUrl;
     } else {
       const fallbackUrl = 'http://5.8.76.33:3000'; // Временный fallback для production
-      debugPrint('🌐 Using fallback URL for production: $fallbackUrl');
-      debugPrint('⚠️ WARNING: Using fallback URL. Set API_URL in .env.production for production!');
       return fallbackUrl;
     }
   }
