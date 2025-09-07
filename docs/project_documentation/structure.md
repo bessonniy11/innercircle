@@ -87,7 +87,8 @@ innercircle/
 │   │   │   └── call_socket_client.dart    # Socket.IO клиент для звонков (namespace /calls) (NEW 25.08.2025)
 │   │   └── 📁 widgets/                    # Общие UI компоненты
 │   │       ├── app_logo.dart              # Виджет логотипа "Звонилка" (NEW 23.08.2025)
-│   │       └── app_bar_logo.dart          # Компактный логотип для AppBar
+│   │       ├── app_bar_logo.dart          # Компактный логотип для AppBar
+│   │       └── responsive_layout.dart     # Виджет для адаптивной верстки (NEW 07.09.2025)
 │   │   ├── 📁 features/                       # Функциональные модули
 │   │   │   ├── 📁 auth/                       # Модуль аутентификации
 │   │   │   │   └── 📁 presentation/           # UI слой
