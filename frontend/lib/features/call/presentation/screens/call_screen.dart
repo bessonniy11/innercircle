@@ -171,7 +171,7 @@ class _CallScreenState extends State<CallScreen> {
       _isMuted = !_isMuted;
     });
     
-    _webrtcService.toggleMicrophone();
+    _webrtcService.setMicrophoneMute(_isMuted);
   }
 
   /// Переключение динамика
@@ -180,8 +180,7 @@ class _CallScreenState extends State<CallScreen> {
       _isSpeakerOn = !_isSpeakerOn;
     });
     
-    // TODO: Реализовать переключение динамика
-    debugPrint('🔊 Speaker ${_isSpeakerOn ? "on" : "off"}');
+    _webrtcService.setSpeakerphoneOn(_isSpeakerOn);
   }
 
   /// Запуск таймера длительности

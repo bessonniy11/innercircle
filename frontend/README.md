@@ -167,6 +167,18 @@ flutter build appbundle
 # Результат в: build/app/outputs/bundle/release/app-release.aab
 ```
 
+### **Web (веб-версия):**
+```bash
+# 1. Убедитесь, что backend настроен на прием запросов с вашего домена (CORS)
+
+# 2. Сборка production-версии веб-приложения
+# Используем --web-renderer canvaskit для лучшей совместимости
+flutter build web --release --web-renderer canvaskit --dart-define-from-file=.env.production
+
+# 3. Результат будет в папке: build/web/
+#    Содержимое этой папки нужно загрузить на ваш хостинг.
+```
+
 ### **iOS (только на macOS):**
 
 #### **1. Подготовка:**

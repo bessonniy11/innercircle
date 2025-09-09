@@ -42,6 +42,9 @@ class WebRTCService extends ChangeNotifier {
   // Очередь ICE кандидатов для добавления после установки remote description
   final List<RTCIceCandidate> _pendingIceCandidates = [];
   
+  // Буфер для исходящих ICE кандидатов до получения callId
+  final List<RTCIceCandidate> _outgoingIceCandidatesBuffer = [];
+
   // Флаг для предотвращения многократного сброса состояния
   bool _isResetting = false;
   
@@ -51,9 +54,34 @@ class WebRTCService extends ChangeNotifier {
   // Конфигурация WebRTC (по умолчанию)
   Map<String, dynamic> _rtcConfiguration = {
     'iceServers': [
-      {'urls': 'stun:5.8.76.33:3478'}, // НАШ STUN сервер (приоритетный)
-      {'urls': 'stun:stun.l.google.com:19302'}, // Fallback Google STUN
-      {'urls': 'stun:stun1.l.google.com:19302'}, // Fallback Google STUN
+      // Default STUN servers - быстрый способ найти прямой путь
+      {'urls': 'stun:stun.l.google.com:19302'},
+      {'urls': 'stun:stun1.l.google.com:19302'},
+
+      // Public TURN servers for NAT traversal
+      // Добавляем несколько серверов для надежности.
+      // Используем порты 80, 443, 3478, чтобы повысить шансы на обход файрволов.
+      {
+        'urls': [
+          'turn:openrelay.metered.ca:80',
+          'turn:openrelay.metered.ca:443'
+        ],
+        'username': 'openrelayproject',
+        'credential': 'openrelayproject',
+      },
+      {
+        'urls': [
+          "turn:stun.nextcloud.com:443",
+          "turn:turn.nextcloud.com:443"
+        ],
+        'username': "",
+        'credential': ""
+      },
+      {
+        'urls': "turn:global.turn.twilio.com:3478?transport=udp",
+        'username': "YOUR_TWILIO_ACCOUNT_SID", // Placeholder
+        'credential': "YOUR_TWILIO_AUTH_TOKEN" // Placeholder
+      }
     ],
     'iceCandidatePoolSize': 10,
   };
@@ -116,10 +144,14 @@ class WebRTCService extends ChangeNotifier {
   }
 
   void _removeSocketListeners() {
-    // Здесь мы должны были бы отписаться, но текущая реализация 
-    // _callSocketClient.on() не предоставляет метода для отписки.
-    // При пересоздании сокета в CallSocketClient старые слушатели удаляются,
-    // так что текущая архитектура это прощает. Оставляем для будущих улучшений.
+    _callSocketClient.off('incoming_call');
+    _callSocketClient.off('call_accepted');
+    _callSocketClient.off('call_rejected');
+    _callSocketClient.off('call_ended');
+    _callSocketClient.off('ice_candidate');
+    _callSocketClient.off('sdp_offer');
+    _callSocketClient.off('sdp_answer');
+    _callSocketClient.off('call_initiated');
   }
 
   // Инициация звонка
@@ -273,13 +305,31 @@ class WebRTCService extends ChangeNotifier {
     }
   }
 
-  // Включение/выключение микрофона
-  void toggleMicrophone() {
+  /// Включает или выключает микрофон.
+  ///
+  /// [mute] - `true` чтобы выключить микрофон, `false` чтобы включить.
+  void setMicrophoneMute(bool mute) {
     if (_localStream != null) {
       final audioTrack = _localStream!.getAudioTracks().first;
       if (audioTrack != null) {
-        audioTrack.enabled = !audioTrack.enabled;
-        notifyListeners();
+        audioTrack.enabled = !mute;
+        // Уведомляем слушателей, если нужно обновить UI, 
+        // хотя в данном случае UI обновляется на самом экране.
+        // notifyListeners(); 
+      }
+    }
+  }
+
+  /// Переключает вывод звука на динамик громкой связи.
+  ///
+  /// [enabled] - `true` чтобы включить громкую связь, `false` чтобы выключить.
+  Future<void> setSpeakerphoneOn(bool enabled) async {
+    // Helper.setSpeakerphoneOn() работает только на мобильных устройствах
+    if (!kIsWeb) {
+      try {
+        await Helper.setSpeakerphoneOn(enabled);
+      } catch (e) {
+        // Игнорируем ошибку, если платформа не поддерживает эту функцию
       }
     }
   }
@@ -348,10 +398,12 @@ class WebRTCService extends ChangeNotifier {
       _peerConnection!.onIceCandidate = (candidate) {
         if (candidate != null) {
           
-          _callSocketClient.emit('ice_candidate', {
-            'callId': _currentCallId,
-            'candidate': candidate.toMap(),
-          });
+          // ИСПРАВЛЕНИЕ: Буферизируем кандидаты, если callId еще не получен
+          if (_currentCallId == null) {
+            _outgoingIceCandidatesBuffer.add(candidate);
+          } else {
+            _sendIceCandidate(candidate);
+          }
         }
       };
 
@@ -654,11 +706,29 @@ class WebRTCService extends ChangeNotifier {
       final callId = data['callId'];
 
       // Обновляем _currentCallId на реальный callId от сервера
-      if (callId != null && callId != _currentCallId) {
+      if (callId != null) {
         _currentCallId = callId;
+
+        // Отправляем всех кандидатов из буфера
+        if (_outgoingIceCandidatesBuffer.isNotEmpty) {
+          for (final candidate in _outgoingIceCandidatesBuffer) {
+            _sendIceCandidate(candidate);
+          }
+          _outgoingIceCandidatesBuffer.clear();
+        }
       }
     } catch (e) {
       // Игнорируем
+    }
+  }
+
+  // Отправка ICE кандидата на сервер
+  void _sendIceCandidate(RTCIceCandidate candidate) {
+    if (_currentCallId != null) {
+      _callSocketClient.emit('ice_candidate', {
+        'callId': _currentCallId,
+        'candidate': candidate.toMap(),
+      });
     }
   }
 
@@ -691,6 +761,7 @@ class WebRTCService extends ChangeNotifier {
       _remoteUserId = null;
       _remoteUsername = null;
       _pendingIceCandidates.clear();
+      _outgoingIceCandidatesBuffer.clear();
       
       // Устанавливаем состояние 'ended', чтобы UI мог среагировать до полного сброса
       _setCallState(CallState.ended);

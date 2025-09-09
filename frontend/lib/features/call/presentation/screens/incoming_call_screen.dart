@@ -25,11 +25,29 @@ class IncomingCallScreen extends StatefulWidget {
 class _IncomingCallScreenState extends State<IncomingCallScreen> {
   late WebRTCService _webrtcService;
   bool _isProcessing = false;
+  bool _isClosing = false;
 
   @override
   void initState() {
     super.initState();
     _webrtcService = Provider.of<WebRTCService>(context, listen: false);
+    _webrtcService.addListener(_onCallStateChanged);
+  }
+
+  @override
+  void dispose() {
+    _webrtcService.removeListener(_onCallStateChanged);
+    super.dispose();
+  }
+  
+  void _onCallStateChanged() {
+    // Если звонок был завершен удаленно (например, звонящий отменил его)
+    if ((_webrtcService.callState == CallState.ended || _webrtcService.callState == CallState.idle) && !_isClosing && mounted) {
+      setState(() {
+        _isClosing = true;
+      });
+      Navigator.of(context).pop();
+    }
   }
 
   /// Принятие входящего звонка

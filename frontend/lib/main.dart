@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:zvonilka/core/widgets/responsive_layout.dart';
 import 'package:zvonilka/features/auth/presentation/screens/splash_screen.dart';
 import 'package:provider/provider.dart'; // Импортируем Provider
 import 'package:zvonilka/core/api/api_client.dart'; // Импортируем ApiClient
@@ -71,8 +72,8 @@ class MyApp extends StatelessWidget {
             Provider.of<AuthService>(context, listen: false),
           ),
         ),
-        // SocketClient зависит от AuthService
-        Provider<SocketClient>(
+        // SocketClient зависит от AuthService и должен быть ChangeNotifierProvider
+        ChangeNotifierProvider<SocketClient>(
           create: (context) => SocketClient(
             Provider.of<AuthService>(context, listen: false),
           ),
@@ -118,6 +119,12 @@ class MyApp extends StatelessWidget {
           ),
         ),
         home: const SplashScreen(),
+        builder: (context, child) {
+          // Оборачиваем все экраны в ResponsiveLayout для адаптивности
+          return ResponsiveLayout(
+            child: child!,
+          );
+        },
       ),
     );
   }
