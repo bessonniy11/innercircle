@@ -29,6 +29,7 @@ import { WsJwtAuthGuard } from 'src/auth/guards/ws-jwt-auth.guard';
  */
 @Module({
   imports: [
+    ConfigModule, // НОВОЕ: Делаем ConfigModule доступным в этом модуле
     TypeOrmModule.forFeature([Call]),
     EventEmitterModule.forRoot(),
     JwtModule.registerAsync({ // НОВОЕ - асинхронная конфигурация JWT

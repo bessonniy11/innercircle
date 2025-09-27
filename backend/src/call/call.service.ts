@@ -3,6 +3,8 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { ConfigService } from '@nestjs/config'; // НОВЫЙ ИМПОРТ
+import * as crypto from 'crypto'; // НОВЫЙ ИМПОРТ
 import { Call, CallStatus, CallType } from './entities/call.entity';
 import { InitiateCallDto } from './dto/initiate-call.dto';
 import { CallResponseDto } from './dto/call-response.dto';
@@ -37,7 +39,8 @@ export class CallService {
   constructor(
     @InjectRepository(Call)
     private readonly callRepository: Repository<Call>,
-    private readonly eventEmitter: EventEmitter2 // НОВОЕ - Event Emitter вместо CallGateway
+    private readonly eventEmitter: EventEmitter2, // НОВОЕ - Event Emitter вместо CallGateway
+    private readonly configService: ConfigService, // НОВЫЙ СЕРВИС
   ) {}
 
   /**
@@ -361,11 +364,47 @@ export class CallService {
   /**
    * НОВОЕ: Получает конфигурацию WebRTC для клиентов
    * 
-   * @returns WebRTC конфигурация с STUN серверами
-   * @since 2.0.0
+   * Генерирует временные учетные данные для TURN сервера.
+   * 
+   * @returns WebRTC конфигурация с STUN и TURN серверами
+   * @since 2.1.0
    * @author ИИ-Ассистент + Bessonniy
    */
   getWebRTCConfig() {
-    return this.webrtcConfig;
+    const turnUrl = this.configService.get<string>('TURN_URL');
+    const turnSecret = this.configService.get<string>('TURN_SECRET');
+
+    if (!turnUrl || !turnSecret) {
+      // Если TURN не настроен, возвращаем только STUN
+      return {
+        iceServers: [
+          { urls: `stun:${turnUrl}` },
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+        ],
+      };
+    }
+
+    // Генерация временных учетных данных для TURN
+    const expiry = Math.floor(Date.now() / 1000) + 3600; // Срок действия - 1 час
+    const username = `${expiry}:${Math.random().toString(36).substring(7)}`;
+    
+    const hmac = crypto.createHmac('sha1', turnSecret);
+    hmac.update(username);
+    const credential = hmac.digest('base64');
+
+    return {
+      iceServers: [
+        { urls: `stun:${turnUrl}` },
+        {
+          urls: `turn:${turnUrl}`,
+          username,
+          credential,
+        },
+        // Fallback STUN серверы
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+      ],
+    };
   }
 }
