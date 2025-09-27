@@ -534,8 +534,8 @@ NODE_ENV=production
 - [x] Frontend может подключиться к production
 
 #### **📋 Планируется:**
-- [ ] SSL сертификат (Let's Encrypt)
-- [ ] DNS настройка для zvonilka.ibessonniy.ru
+- [x] SSL сертификат (Let's Encrypt)
+- [x] DNS настройка для zvonilka.ibessonniy.ru
 - [ ] Автоматические бэкапы базы данных
 - [ ] Мониторинг (Grafana + Prometheus)
 - [ ] CI/CD пайплайн (GitHub Actions)
