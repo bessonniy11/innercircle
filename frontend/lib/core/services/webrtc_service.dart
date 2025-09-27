@@ -54,34 +54,9 @@ class WebRTCService extends ChangeNotifier {
   // Конфигурация WebRTC (по умолчанию)
   Map<String, dynamic> _rtcConfiguration = {
     'iceServers': [
-      // Default STUN servers - быстрый способ найти прямой путь
+      // Оставляем только один STUN-сервер Google как самый базовый фолбэк.
+      // Основная конфигурация будет загружена с нашего бэкенда.
       {'urls': 'stun:stun.l.google.com:19302'},
-      {'urls': 'stun:stun1.l.google.com:19302'},
-
-      // Public TURN servers for NAT traversal
-      // Добавляем несколько серверов для надежности.
-      // Используем порты 80, 443, 3478, чтобы повысить шансы на обход файрволов.
-      {
-        'urls': [
-          'turn:openrelay.metered.ca:80',
-          'turn:openrelay.metered.ca:443'
-        ],
-        'username': 'openrelayproject',
-        'credential': 'openrelayproject',
-      },
-      {
-        'urls': [
-          "turn:stun.nextcloud.com:443",
-          "turn:turn.nextcloud.com:443"
-        ],
-        'username': "",
-        'credential': ""
-      },
-      {
-        'urls': "turn:global.turn.twilio.com:3478?transport=udp",
-        'username': "YOUR_TWILIO_ACCOUNT_SID", // Placeholder
-        'credential': "YOUR_TWILIO_AUTH_TOKEN" // Placeholder
-      }
     ],
     'iceCandidatePoolSize': 10,
   };
@@ -296,9 +271,7 @@ class WebRTCService extends ChangeNotifier {
     if (_callType == CallType.video && _localStream != null) {
       try {
         final videoTrack = _localStream!.getVideoTracks().first;
-        if (videoTrack != null) {
-          await Helper.switchCamera(videoTrack);
-        }
+        await Helper.switchCamera(videoTrack);
       } catch (e) {
         // Игнорируем
       }
@@ -311,12 +284,10 @@ class WebRTCService extends ChangeNotifier {
   void setMicrophoneMute(bool mute) {
     if (_localStream != null) {
       final audioTrack = _localStream!.getAudioTracks().first;
-      if (audioTrack != null) {
-        audioTrack.enabled = !mute;
+      audioTrack.enabled = !mute;
         // Уведомляем слушателей, если нужно обновить UI, 
         // хотя в данном случае UI обновляется на самом экране.
         // notifyListeners(); 
-      }
     }
   }
 
@@ -338,10 +309,8 @@ class WebRTCService extends ChangeNotifier {
   void toggleCamera() {
     if (_callType == CallType.video && _localStream != null) {
       final videoTrack = _localStream!.getVideoTracks().first;
-      if (videoTrack != null) {
-        videoTrack.enabled = !videoTrack.enabled;
+      videoTrack.enabled = !videoTrack.enabled;
         notifyListeners();
-      }
     }
   }
 
@@ -756,7 +725,6 @@ class WebRTCService extends ChangeNotifier {
     try {
       
       // ИСПРАВЛЕНИЕ: Сначала обнуляем ID, чтобы предотвратить гонку состояний
-      final oldCallId = _currentCallId;
       _currentCallId = null;
       _remoteUserId = null;
       _remoteUsername = null;
