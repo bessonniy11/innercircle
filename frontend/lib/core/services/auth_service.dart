@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:dio/dio.dart';
 import 'package:zvonilka/core/config/api_config.dart';
+import 'package:zvonilka/core/services/push_notification_service.dart';
 
 /// Сервис для управления аутентификацией и токенами
 /// Использует ChangeNotifier для уведомления подписчиков об изменениях состояния
@@ -13,6 +14,7 @@ class AuthService with ChangeNotifier {
   static const String _usernameKey = 'username';
 
   String? accessToken;
+  PushNotificationService? _pushNotificationService;
 
   static AuthService? _instance;
   SharedPreferences? _prefs;
@@ -24,6 +26,11 @@ class AuthService with ChangeNotifier {
   /// Синхронный конструктор для Provider
   AuthService() {
     _initPrefs();
+  }
+
+  /// Внедрение зависимости от PushNotificationService
+  void setPushNotificationService(PushNotificationService service) {
+    _pushNotificationService = service;
   }
 
   /// Инициализация SharedPreferences
@@ -52,6 +59,9 @@ class AuthService with ChangeNotifier {
     await _prefs!.setString(_userIdKey, userId);
     await _prefs!.setString(_usernameKey, username);
     this.accessToken = accessToken; // Обновляем токен в памяти
+    
+    // Инициализируем push-уведомления после успешного входа
+    await _pushNotificationService?.initialize();
     
     notifyListeners(); // Уведомляем слушателей
   }

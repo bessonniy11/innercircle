@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'webrtc_service.dart';
 import '../../features/call/presentation/screens/incoming_call_screen.dart';
+import '../../features/call/domain/models/call_model.dart'; // ИМПОРТИРУЕМ МОДЕЛЬ
 
 /// Сервис для отображения уведомлений о входящих звонках
 class CallNotificationService {
@@ -60,12 +61,16 @@ class CallNotificationService {
 
     if (activeContext != null && activeContext!.mounted) {
       debugPrint('🔔 CallNotificationService: Навигация к IncomingCallScreen');
+      
+      // КОНВЕРТИРУЕМ СТРОКУ В ENUM
+      final type = callType == 'video' ? CallType.video : CallType.voice;
+
       Navigator.of(activeContext!).push(
         MaterialPageRoute(
           builder: (context) => IncomingCallScreen(
             callId: callId,
             remoteUserId: remoteUserId,
-            callType: callType,
+            callType: type, // ПЕРЕДАЕМ ПРАВИЛЬНЫЙ ТИП
             remoteUsername: remoteUsername ?? 'Unknown User',
           ),
         ),
@@ -82,6 +87,6 @@ class CallNotificationService {
     setContext(context);
     
     // Устанавливаем callback в WebRTCService
-    webrtcService.setIncomingCallCallback(showIncomingCall);
+    // webrtcService.setIncomingCallCallback(showIncomingCall); // УДАЛЯЕМ УСТАРЕВШИЙ ВЫЗОВ
   }
 }

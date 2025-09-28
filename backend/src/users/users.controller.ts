@@ -3,9 +3,10 @@ import { AuthGuard } from '@nestjs/passport';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateFcmTokenDto } from './dto/update-fcm-token.dto';
 import { User } from './entities/user.entity';
 import { UserPublicDto } from './dto/user-public.dto'; // Импортируем новый DTO
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('users') // Добавляем тег для Swagger
 @Controller('users')
@@ -39,6 +40,28 @@ export class UsersController {
   getProfile(@Request() req): Omit<User, 'passwordHash'> {
     const { passwordHash, ...result } = req.user;
     return result; // Возвращаем UserPublicDto
+  }
+
+  /**
+   * Обновляет FCM токен для текущего аутентифицированного пользователя.
+   * @param req - Объект запроса, содержащий информацию о пользователе.
+   * @param updateFcmTokenDto - DTO с новым FCM токеном.
+   */
+  @UseGuards(AuthGuard('jwt'))
+  @Post('fcm-token')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Обновить FCM токен', description: 'Сохраняет или обновляет FCM токен для текущего пользователя, чтобы он мог получать push-уведомления.' })
+  @ApiBody({ type: UpdateFcmTokenDto })
+  @ApiResponse({ status: HttpStatus.OK, description: 'FCM токен успешно обновлен.' })
+  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Не авторизован.' })
+  async updateFcmToken(
+    @Request() req,
+    @Body() updateFcmTokenDto: UpdateFcmTokenDto,
+  ): Promise<void> {
+    const userId = req.user.id;
+    const { fcmToken } = updateFcmTokenDto;
+    await this.usersService.updateFcmToken(userId, fcmToken);
   }
 
   /**

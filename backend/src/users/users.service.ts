@@ -7,9 +7,12 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcryptjs';
 import { InvitationCodesService } from '../invitation-codes/invitation-codes.service';
 import { ChatService } from '../chat/chat.service';
+import { Logger } from '@nestjs/common';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
@@ -234,6 +237,28 @@ export class UsersService {
       // Если колонки не существуют, возвращаем null
       console.warn('Refresh token search failed:', error.message);
       return null;
+    }
+  }
+
+  /**
+   * НОВОЕ: Сохраняет или обновляет FCM токен для пользователя
+   * @param userId - ID пользователя
+   * @param fcmToken - FCM токен для сохранения
+   */
+  async updateFcmToken(userId: string, fcmToken: string): Promise<void> {
+    this.logger.log(
+      `Попытка обновить FCM токен для пользователя ${userId} на токен: ${fcmToken}`,
+    );
+    try {
+      await this.usersRepository.update(userId, { fcmToken });
+      this.logger.log(
+        `FCM токен для пользователя ${userId} успешно обновлен в БД.`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Ошибка при обновлении FCM токена для пользователя ${userId}:`,
+        error,
+      );
     }
   }
 }

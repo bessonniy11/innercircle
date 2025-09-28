@@ -43,6 +43,14 @@ export class User {
   })
   refreshTokenExpiresAt?: Date | null;
 
+  @Column({
+    name: 'fcmToken',
+    nullable: true,
+    type: 'text',
+    default: null,
+  })
+  fcmToken?: string | null;
+
   @OneToMany(() => Message, message => message.sender)
   messages: Message[];
 

@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../../core/services/webrtc_service.dart';
+import 'package:zvonilka/core/services/webrtc_service.dart';
+import 'package:zvonilka/features/call/domain/models/call_model.dart'; // ИМПОРТИРУЕМ МОДЕЛЬ
 import 'active_call_screen.dart';
 
 /// Экран для отображения входящего звонка
 class IncomingCallScreen extends StatefulWidget {
   final String callId;
   final String remoteUserId;
-  final String callType;
+  final CallType callType; // ИСПРАВЛЯЕМ ТИП
   final String remoteUsername;
 
   const IncomingCallScreen({
     super.key,
     required this.callId,
     required this.remoteUserId,
-    required this.callType,
+    this.callType = CallType.voice, // ИСПРАВЛЯЕМ ЗНАЧЕНИЕ ПО УМОЛЧАНИЮ
     required this.remoteUsername,
   });
 
@@ -41,8 +42,24 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
   }
   
   void _onCallStateChanged() {
-    // Если звонок был завершен удаленно (например, звонящий отменил его)
-    if ((_webrtcService.callState == CallState.ended || _webrtcService.callState == CallState.idle) && !_isClosing && mounted) {
+    // Если звонок был принят и соединение установлено
+    if (_webrtcService.callState == CallState.connected && !_isClosing && mounted) {
+      setState(() {
+        _isClosing = true;
+      });
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ActiveCallScreen(
+            remoteUserId: _webrtcService.remoteUserId ?? '',
+            remoteUsername: widget.remoteUsername,
+            callType: widget.callType,
+          ),
+        ),
+      );
+    }
+    // Если звонок был завершен удаленно (например, звонящий отменил его) или не удалось принять
+    else if ((_webrtcService.callState == CallState.ended || _webrtcService.callState == CallState.idle) && !_isClosing && mounted) {
       setState(() {
         _isClosing = true;
       });
@@ -58,52 +75,15 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
       _isProcessing = true;
     });
 
-    try {
-      
-      // Принимаем звонок через WebRTCService
-      final success = await _webrtcService.acceptCall(
-        widget.callId,
-        widget.callType == 'video' ? CallType.video : CallType.audio,
-      );
+    // Просто вызываем метод сервиса. Навигацией займется _onCallStateChanged.
+    final success = await _webrtcService.acceptCall();
 
-      if (success) {
-        // Переходим на экран активного звонка
-        if (mounted) {
-          // ИСПРАВЛЕНИЕ: Используем pushReplacement, чтобы заменить текущий экран (IncomingCallScreen)
-          // на ActiveCallScreen. Это предотвращает возврат к экрану входящего вызова
-          // после завершения звонка.
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ActiveCallScreen(
-                remoteUserId: widget.remoteUserId,
-                remoteUsername: widget.remoteUsername, // Используем переданное имя
-                callType: widget.callType == 'video' ? CallType.video : CallType.audio,
-              ),
-            ),
-          );
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Не удалось принять звонок')),
-          );
-          // Закрываем экран
-          Navigator.of(context).pop();
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
-      }
+    // Если принять звонок по какой-то причине сразу не удалось,
+    // разблокируем UI и позволим _onCallStateChanged закрыть экран.
+    if (!success && mounted) {
+      setState(() {
+        _isProcessing = false;
+      });
     }
   }
 
@@ -118,12 +98,13 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
     try {
       
       // Отклоняем звонок через WebRTCService
-      _webrtcService.rejectCall(widget.callId);
+      await _webrtcService.rejectCall();
 
-      if (mounted) {
-        // Закрываем экран
-        Navigator.of(context).pop();
-      }
+      // Явное закрытие экрана больше не нужно, т.к. rejectCall изменит состояние
+      // на ended/idle, и _onCallStateChanged обработает закрытие.
+      // if (mounted) {
+      //   Navigator.of(context).pop();
+      // }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -187,7 +168,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24.0),
                       child: Text(
-                        widget.callType == 'video' ? 'Видеозвонок' : 'Аудиозвонок',
+                        widget.callType == CallType.video ? 'Видеозвонок' : 'Аудиозвонок',
                         style: const TextStyle(
                           fontSize: 18,
                           color: Colors.white70,

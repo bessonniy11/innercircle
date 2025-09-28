@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:zvonilka/features/call/domain/models/call_model.dart';
 import 'package:zvonilka/core/services/webrtc_service.dart';
+import 'package:zvonilka/features/call/presentation/screens/incoming_call_screen.dart';
+import 'package:zvonilka/features/call/presentation/screens/active_call_screen.dart';
 
 /// Экран звонка с WebRTC интеграцией
 class CallScreen extends StatefulWidget {
@@ -91,8 +93,8 @@ class _CallScreenState extends State<CallScreen> {
 
       // Инициация звонка через WebRTCService
       final success = await _webrtcService.initiateCall(
-        widget.call.receiverId, 
-        _webrtcService.callType
+        widget.call.receiverId,
+        widget.call.type,
       );
       
       if (success) {
@@ -119,10 +121,7 @@ class _CallScreenState extends State<CallScreen> {
   Future<void> _answerCall() async {
     try {
       // Принимаем звонок через WebRTCService
-      final success = await _webrtcService.acceptCall(
-        widget.call.id, 
-        _webrtcService.callType
-      );
+      final success = await _webrtcService.acceptCall();
       
       if (success) {
         debugPrint('🔊 Call answered');

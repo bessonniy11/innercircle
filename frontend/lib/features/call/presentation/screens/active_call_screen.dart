@@ -5,6 +5,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:provider/provider.dart';
 import 'package:proximity_sensor/proximity_sensor.dart';
 import '../../../../core/services/webrtc_service.dart' as webrtc;
+import '../../domain/models/call_model.dart'; // ИМПОРТИРУЕМ ПРАВИЛЬНУЮ МОДЕЛЬ
 
 // ИСПРАВЛЕНИЕ: Импортируем foundation для kIsWeb
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -16,7 +17,7 @@ import '../utils/web_audio_manager.dart';
 class ActiveCallScreen extends StatefulWidget {
   final String remoteUserId;
   final String remoteUsername;
-  final webrtc.CallType callType;
+  final CallType callType; // ИСПРАВЛЯЕМ ТИП
 
   const ActiveCallScreen({
     super.key,

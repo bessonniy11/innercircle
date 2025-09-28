@@ -10,6 +10,7 @@ import 'package:zvonilka/core/services/webrtc_service.dart' as webrtc;
 import 'package:zvonilka/core/socket/call_socket_client.dart';
 import 'package:zvonilka/features/call/presentation/screens/active_call_screen.dart';
 import 'package:zvonilka/core/services/call_notification_service.dart';
+import 'package:zvonilka/features/call/domain/models/call_model.dart'; // ИМПОРТИРУЕМ МОДЕЛЬ
 
 /**
  * Экран списка пользователей.
@@ -94,12 +95,22 @@ class _UserListScreenState extends State<UserListScreen> {
         return;
       }
       
-                         // Инициируем аудио звонок
-                   final success = await webrtcService.initiateCall(
-                     user.id, 
-                     webrtc.CallType.audio,
-                     callerUsername: widget.currentUsername,
-                   );
+      // НОВОЕ: Проверяем, не идет ли уже звонок
+      if (webrtcService.callState != webrtc.CallState.idle) { // ИСПРАВЛЕНО
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Нельзя начать новый звонок, пока текущий не завершен.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+      
+      // Инициируем аудио звонок
+      final success = await webrtcService.initiateCall(
+        user.id,
+        CallType.voice, // ИСПОЛЬЗУЕМ ПРАВИЛЬНЫЙ ENUM
+      );
       
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -112,7 +123,7 @@ class _UserListScreenState extends State<UserListScreen> {
             builder: (context) => ActiveCallScreen(
               remoteUserId: user.id,
               remoteUsername: user.username,
-              callType: webrtc.CallType.audio,
+              callType: CallType.voice, // ИСПРАВЛЕНО
             ),
           ),
         );

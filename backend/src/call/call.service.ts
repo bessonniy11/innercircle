@@ -8,6 +8,9 @@ import * as crypto from 'crypto'; // НОВЫЙ ИМПОРТ
 import { Call, CallStatus, CallType } from './entities/call.entity';
 import { InitiateCallDto } from './dto/initiate-call.dto';
 import { CallResponseDto } from './dto/call-response.dto';
+import { NotificationsService } from 'src/notifications/notifications.service';
+import { UsersService } from 'src/users/users.service';
+import { Logger } from '@nestjs/common'; // НОВЫЙ ИМПОРТ
 
 /**
  * Сервис для управления голосовыми и видеозвонками
@@ -36,11 +39,15 @@ export class CallService {
     ],
   };
 
+  private readonly logger = new Logger(CallService.name); // НОВЫЙ ЛОГЕР
+
   constructor(
     @InjectRepository(Call)
     private readonly callRepository: Repository<Call>,
     private readonly eventEmitter: EventEmitter2, // НОВОЕ - Event Emitter вместо CallGateway
     private readonly configService: ConfigService, // НОВЫЙ СЕРВИС
+    private readonly notificationsService: NotificationsService,
+    private readonly usersService: UsersService,
   ) {}
 
   /**
@@ -70,25 +77,64 @@ export class CallService {
       throw new BadRequestException('Нельзя позвонить самому себе');
     }
 
+    // Получаем данные о звонящем и получателе
+    const [caller, receiver] = await Promise.all([
+      this.usersService.findOne(callerId),
+      this.usersService.findOne(targetUserId),
+    ]);
+
+    if (!caller || !receiver) {
+      throw new NotFoundException('Один из пользователей не найден');
+    }
+
     // Создаем новый звонок
-    const call = this.callRepository.create({
-      callerId,
-      receiverId: targetUserId,
-      status: CallStatus.INITIATING,
-      type,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+    const newCall = this.callRepository.create({
+      caller,
+      receiver,
+      type, // ИСПРАВЛЕНИЕ: Используем 'type' вместо 'callType'
+      status: CallStatus.INITIATING, // ИСПРАВЛЕНИЕ: Используем enum вместо строки 'pending'
     });
 
-    const savedCall = await this.callRepository.save(call);
+    // 1. СНАЧАЛА сохраняем звонок, чтобы получить сгенерированный ID
+    const savedCall = await this.callRepository.save(newCall);
 
-    // НОВОЕ: Сразу переводим в статус RINGING
-    const ringingCall = await this.updateCallStatus(savedCall.id, CallStatus.RINGING, callerId);
-    
-    // НОВОЕ: Эмитим событие вместо прямого вызова Gateway
-    this.eventEmitter.emit('call.created', ringingCall);
-    
-    return ringingCall; // Возвращаем звонок в статусе RINGING
+    // 2. ТЕПЕРЬ отправляем Push-уведомление с реальным ID
+    if (receiver.fcmToken) {
+      this.logger.log(
+        `Найден FCM токен для получателя ${targetUserId}. Попытка отправить Push-уведомление для звонка ${savedCall.id}.`,
+      );
+      const callerName = caller.username;
+
+      // Мы не будем здесь использовать await, чтобы не блокировать основной поток ответа.
+      // Отправка уведомления может происходить в фоновом режиме.
+      this.notificationsService
+        .sendPushNotification(
+          receiver.fcmToken,
+          'Входящий звонок',
+          `Вам звонит ${callerName}`,
+          {
+            callId: savedCall.id, // Используем ID из сохраненной сущности
+            callerName,
+            callType: savedCall.type,
+            'remoteUserId': caller.id, // НОВОЕ ПОЛЕ
+          },
+        )
+        .catch((error) => {
+          this.logger.error(
+            `Ошибка при отправке Push-уведомления для звонка ${savedCall.id}:`,
+            error,
+          );
+        });
+    } else {
+      this.logger.warn(
+        `FCM токен для получателя ${targetUserId} не найден. Push-уведомление не отправлено.`,
+      );
+    }
+
+    // НОВОЕ: Отправляем событие через WebSocket для онлайн-пользователей (веб-версия)
+    this.eventEmitter.emit('call.created', savedCall);
+
+    return savedCall;
   }
 
   /**

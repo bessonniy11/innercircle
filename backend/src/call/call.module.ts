@@ -9,6 +9,8 @@ import { CallService } from './call.service';
 import { CallGateway } from './call.gateway';
 import { Call } from './entities/call.entity';
 import { WsJwtAuthGuard } from 'src/auth/guards/ws-jwt-auth.guard';
+import { NotificationsModule } from 'src/notifications/notifications.module';
+import { UsersModule } from 'src/users/users.module';
 
 /**
  * Модуль звонков для управления голосовыми и видеозвонками
@@ -40,6 +42,8 @@ import { WsJwtAuthGuard } from 'src/auth/guards/ws-jwt-auth.guard';
       }),
       inject: [ConfigService],
     }),
+    NotificationsModule,
+    UsersModule,
   ],
   controllers: [CallController],
   providers: [CallService, CallGateway, WsJwtAuthGuard],

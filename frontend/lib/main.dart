@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart'; // Импортируем Firebase Core
+import 'package:zvonilka/firebase_options.dart'; // НОВЫЙ ИМПОРТ (файл будет сгенерирован)
 import 'package:zvonilka/core/widgets/responsive_layout.dart';
 import 'package:zvonilka/features/auth/presentation/screens/splash_screen.dart';
 import 'package:provider/provider.dart'; // Импортируем Provider
@@ -9,10 +11,25 @@ import 'package:zvonilka/core/config/api_config.dart';
 import 'package:zvonilka/core/services/auth_service.dart';
 import 'package:zvonilka/core/services/webrtc_service.dart';
 import 'package:zvonilka/core/services/call_notification_service.dart';
-import 'package:permission_handler/permission_handler.dart'; 
+import 'package:zvonilka/core/services/push_notification_service.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+// НОВЫЙ КЛЮЧ НАВИГАТОРА
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized(); 
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Инициализируем Firebase с конфигурацией для текущей платформы
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    debugPrint('🔥 Firebase initialized successfully!');
+  } catch (e) {
+    debugPrint('🚨 Error initializing Firebase: $e');
+  }
+
   // Запрашиваем разрешения для микрофона и камеры
   await requestMicrophonePermissions();
   // Показываем текущую конфигурацию API
@@ -24,32 +41,32 @@ void main() async {
 Future<void> requestMicrophonePermissions() async {
   try {
     debugPrint('🔐 Запрашиваем разрешения для микрофона и камеры...');
-    
+
     // Запрашиваем разрешения
     Map<Permission, PermissionStatus> statuses = await [
       Permission.microphone,
       Permission.camera,
     ].request();
-    
+
     // Проверяем статус микрофона
     if (statuses[Permission.microphone] == PermissionStatus.granted) {
       debugPrint('✅ Разрешение на микрофон получено');
     } else {
       debugPrint('❌ Разрешение на микрофон НЕ получено: ${statuses[Permission.microphone]}');
     }
-    
+
     // Проверяем статус камеры
     if (statuses[Permission.camera] == PermissionStatus.granted) {
       debugPrint('✅ Разрешение на камеру получено');
     } else {
       debugPrint('❌ Разрешение на камеру НЕ получено: ${statuses[Permission.camera]}');
     }
-    
+
     // Если микрофон не разрешен, показываем предупреждение
     if (statuses[Permission.microphone] != PermissionStatus.granted) {
       debugPrint('⚠️ ВНИМАНИЕ: Без разрешения на микрофон звонки НЕ будут работать!');
     }
-    
+
   } catch (e) {
     debugPrint('🚨 Ошибка при запросе разрешений: $e');
   }
@@ -62,7 +79,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // AuthService теперь ChangeNotifierProvider
+        // AuthService
         ChangeNotifierProvider<AuthService>(
           create: (_) => AuthService(),
         ),
@@ -72,29 +89,46 @@ class MyApp extends StatelessWidget {
             Provider.of<AuthService>(context, listen: false),
           ),
         ),
-        // SocketClient зависит от AuthService и должен быть ChangeNotifierProvider
+        // SocketClient
         ChangeNotifierProvider<SocketClient>(
           create: (context) => SocketClient(
             Provider.of<AuthService>(context, listen: false),
           ),
         ),
-        // CallSocketClient зависит от AuthService и теперь тоже ChangeNotifierProvider
+        // CallSocketClient
         ChangeNotifierProvider<CallSocketClient>(
           create: (context) => CallSocketClient(
             Provider.of<AuthService>(context, listen: false),
           ),
         ),
-        ChangeNotifierProvider<WebRTCService>(
-          create: (context) => WebRTCService(
-            Provider.of<CallSocketClient>(context, listen: false),
+        // PushNotificationService ДОЛЖЕН БЫТЬ ПЕРЕД WebRTCService
+        Provider<PushNotificationService>(
+          create: (context) => PushNotificationService(
             Provider.of<ApiClient>(context, listen: false),
           ),
         ),
+        // WebRTCService, который теперь использует PushNotificationService
+        ChangeNotifierProvider<WebRTCService>(
+          create: (context) {
+            final webRTCService = WebRTCService(
+              Provider.of<CallSocketClient>(context, listen: false),
+              Provider.of<ApiClient>(context, listen: false),
+              Provider.of<AuthService>(context, listen: false), // ПЕРЕДАЕМ AuthService
+            );
+            final pushService = Provider.of<PushNotificationService>(context, listen: false);
+            pushService.setForegroundCallCallback(
+              webRTCService.handleIncomingCallFromPush,
+            );
+            return webRTCService;
+          },
+        ),
+        // CallNotificationService
         Provider<CallNotificationService>(
           create: (_) => CallNotificationService(),
         ),
       ],
       child: MaterialApp(
+        navigatorKey: navigatorKey, // ИСПОЛЬЗУЕМ КЛЮЧ ЗДЕСЬ
         title: 'Звонилка',
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(

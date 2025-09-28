@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { InvitationCodesModule } from './invitation-codes/invitation-codes.module';
 import { ChatModule } from './chat/chat.module';
 import { CallModule } from './call/call.module'; // НОВОЕ - модуль звонков
+import { NotificationsModule } from './notifications/notifications.module';
 // import { MessageService } from './message/message.service'; // Remove this line
 
 @Module({
@@ -34,6 +35,7 @@ import { CallModule } from './call/call.module'; // НОВОЕ - модуль з
     InvitationCodesModule,
     ChatModule,
     CallModule, // НОВОЕ - модуль звонков
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

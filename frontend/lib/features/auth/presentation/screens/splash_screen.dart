@@ -7,6 +7,7 @@ import 'package:zvonilka/features/auth/presentation/screens/login_screen.dart';
 import 'package:zvonilka/features/chat/presentation/screens/chat_list_screen.dart';
 import 'package:zvonilka/core/widgets/app_logo.dart';
 import 'package:provider/provider.dart';
+import 'package:zvonilka/core/services/push_notification_service.dart';
 
 /// Экран загрузки для проверки состояния аутентификации
 class SplashScreen extends StatefulWidget {
@@ -32,6 +33,10 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
 
     final authService = Provider.of<AuthService>(context, listen: false);
+    
+    // НОВОЕ: Передаем PushNotificationService в AuthService
+    final pushService = Provider.of<PushNotificationService>(context, listen: false);
+    authService.setPushNotificationService(pushService);
     
     // Проверяем, есть ли валидный refresh token
     final hasRefreshToken = await authService.hasValidRefreshToken();
