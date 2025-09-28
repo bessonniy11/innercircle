@@ -87,6 +87,9 @@ export class Call {
   @Column({ name: 'receiverIceCandidates', type: 'jsonb', nullable: true })
   receiverIceCandidates: any[] | null;
 
+  @Column({ name: 'sdpOffer', type: 'jsonb', nullable: true })
+  sdpOffer: any | null;
+
   @CreateDateColumn({ name: 'createdAt' })
   createdAt: Date;
 

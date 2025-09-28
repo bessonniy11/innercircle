@@ -26,6 +26,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // Парсим данные из уведомления
   final String callId = message.data['callId'] ?? '';
   final String callerName = message.data['callerName'] ?? 'Неизвестный';
+  final String remoteUserId = message.data['remoteUserId'] ?? ''; // ИСПРАВЛЕНИЕ
   
   // Генерируем уникальный UUID для сессии CallKit
   final String callKitId = const Uuid().v4();
@@ -48,6 +49,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     extra: <String, dynamic>{
       'callId': callId, // Наш внутренний ID звонка
       'callerName': callerName,
+      'remoteUserId': remoteUserId, // ИСПРАВЛЕНИЕ
     },
     android: const AndroidParams(
       isCustomNotification: true,

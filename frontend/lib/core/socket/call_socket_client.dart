@@ -2,6 +2,7 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:flutter/foundation.dart';
 import 'package:zvonilka/core/config/api_config.dart';
 import 'package:zvonilka/core/services/auth_service.dart';
+import 'dart:async';
 
 /// WebSocket клиент для WebRTC сигналинга звонков
 /// Подключается к отдельному namespace /calls
@@ -11,6 +12,10 @@ class CallSocketClient with ChangeNotifier {
   String? _token;
   bool _isConnected = false;
   final AuthService _authService;
+
+  // НОВЫЕ ПОЛЯ ДЛЯ УПРАВЛЕНИЯ ПОДКЛЮЧЕНИЕМ
+  Completer<void>? _connectionCompleter;
+  bool _isConnecting = false;
 
   bool get isConnected => _isConnected;
   IO.Socket? get socket => _socket;
@@ -39,22 +44,65 @@ class CallSocketClient with ChangeNotifier {
 
     _socket!.onConnect((_) {
       _isConnected = true;
+      _isConnecting = false;
+      _connectionCompleter?.complete();
       notifyListeners();
     });
 
     _socket!.onDisconnect((_) {
       _isConnected = false;
+      _isConnecting = false;
+      // Если было активное ожидание, завершаем его с ошибкой
+      if (_connectionCompleter != null && !_connectionCompleter!.isCompleted) {
+        _connectionCompleter!.completeError(Exception('Socket Disconnected'));
+      }
       notifyListeners();
     });
     
+    _socket!.onConnectError((error) {
+      _isConnected = false;
+      _isConnecting = false;
+      if (_connectionCompleter != null && !_connectionCompleter!.isCompleted) {
+        _connectionCompleter!.completeError(Exception('Socket Connect Error: $error'));
+      }
+      notifyListeners();
+    });
+
     _socket!.onError((error) => print('🔥 CallSocket: Ошибка: $error'));
   }
 
   void connect() {
+    if (_isConnected || _isConnecting) {
+      return; // Уже подключены или в процессе
+    }
+    if (_token == null || _token!.isEmpty) {
+      return;
+    }
+
+    _isConnecting = true;
+    _connectionCompleter = Completer<void>();
+
     if (_socket?.connected == false) {
        _socket!.auth = {'token': _token};
        _socket!.connect();
     }
+  }
+
+  /// НОВЫЙ МЕТОД: Гарантирует, что сокет подключен.
+  /// Возвращает Future, который завершается при успешном подключении.
+  Future<void> ensureConnected() {
+    if (_isConnected) {
+      return Future.value();
+    }
+    
+    // Если подключение уже идет, возвращаем его Future
+    if (_isConnecting && _connectionCompleter != null) {
+      return _connectionCompleter!.future;
+    }
+    
+    // Если не подключены и не в процессе, запускаем подключение
+    connect();
+    return _connectionCompleter?.future ?? Future.error(Exception("Socket client not initialized"));
   }
 
   void disconnect() {
@@ -81,7 +129,7 @@ class CallSocketClient with ChangeNotifier {
       if (_socket!.connected) {
         _socket!.disconnect();
       }
-      _socket!.connect();
+      connect(); // ИЗМЕНЕНО
 
     } else {
       disconnect();

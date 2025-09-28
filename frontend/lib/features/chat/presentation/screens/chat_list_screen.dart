@@ -40,9 +40,16 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
     _fetchChats();
     
     // Инициализируем сервис уведомлений для звонков
-    final callNotificationService = Provider.of<CallNotificationService>(context, listen: false);
-    final webrtcService = Provider.of<webrtc.WebRTCService>(context, listen: false);
-    callNotificationService.initializeWithWebRTCService(webrtcService, context);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final callNotificationService = Provider.of<CallNotificationService>(context, listen: false);
+      final webrtcService = Provider.of<webrtc.WebRTCService>(context, listen: false);
+      callNotificationService.initializeWithWebRTCService(webrtcService, context);
+      // НОВОЕ: Передаем данные текущего пользователя в сервис
+      callNotificationService.setCurrentUser(
+        userId: widget.currentUserId,
+        username: widget.currentUsername,
+      );
+    });
   }
 
   @override

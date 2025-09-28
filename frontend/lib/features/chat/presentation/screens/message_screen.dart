@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:zvonilka/core/api/api_client.dart';
 import 'package:zvonilka/core/socket/socket_client.dart';
+import 'package:zvonilka/core/services/call_notification_service.dart';
+import 'package:zvonilka/core/services/webrtc_service.dart' as webrtc;
 import 'package:zvonilka/features/chat/domain/models/message_model.dart'; // Import MessageModel
 
 class MessageScreen extends StatefulWidget {
@@ -36,6 +39,16 @@ class _MessageScreenState extends State<MessageScreen> {
     super.initState();
     _fetchMessages();
     _setupSocketListeners();
+    // НОВОЕ: Регистрируем контекст и пользователя в сервисе уведомлений
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final callNotificationService = Provider.of<CallNotificationService>(context, listen: false);
+      final webrtcService = Provider.of<webrtc.WebRTCService>(context, listen: false);
+      callNotificationService.initializeWithWebRTCService(webrtcService, context);
+      callNotificationService.setCurrentUser(
+        userId: widget.currentUserId,
+        username: widget.currentUsername,
+      );
+    });
   }
 
   @override

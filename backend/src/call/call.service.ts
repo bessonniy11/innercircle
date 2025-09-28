@@ -138,6 +138,69 @@ export class CallService {
   }
 
   /**
+   * НОВЫЙ МЕТОД: Сохраняет ICE кандидат для звонка.
+   * Определяет, от звонящего или от получателя пришел кандидат,
+   * и добавляет его в соответствующий массив в базе данных.
+   * @param callId ID звонка
+   * @param senderId ID пользователя, отправившего кандидат
+   * @param candidate ICE кандидат
+   */
+  async saveIceCandidate(
+    callId: string,
+    senderId: string,
+    candidate: any,
+  ): Promise<void> {
+    const call = await this.callRepository.findOne({ where: { id: callId } });
+
+    if (!call) {
+      this.logger.warn(
+        `Попытка сохранить ICE кандидат для несуществующего звонка: ${callId}`,
+      );
+      return;
+    }
+
+    if (senderId === call.callerId) {
+      const candidates = call.callerIceCandidates || [];
+      candidates.push(candidate);
+      await this.callRepository.update(
+        { id: callId },
+        { callerIceCandidates: candidates },
+      );
+    } else if (senderId === call.receiverId) {
+      const candidates = call.receiverIceCandidates || [];
+      candidates.push(candidate);
+      await this.callRepository.update(
+        { id: callId },
+        { receiverIceCandidates: candidates },
+      );
+    } else {
+      this.logger.warn(
+        `Попытка сохранить ICE кандидат от пользователя ${senderId}, не являющегося участником звонка ${callId}`,
+      );
+    }
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Сохраняет SDP Offer для звонка.
+   * @param callId ID звонка
+   * @param sdpOffer SDP Offer объект
+   * @returns Promise<void>
+   */
+  async saveSdpOffer(callId: string, sdpOffer: any): Promise<void> {
+    const result = await this.callRepository.update(
+      { id: callId },
+      { sdpOffer: sdpOffer },
+    );
+
+    if (result.affected === 0) {
+      this.logger.warn(
+        `Попытка сохранить SDP Offer для несуществующего звонка: ${callId}`,
+      );
+      // Мы не выбрасываем ошибку, чтобы не прерывать основной поток сигналинга
+    }
+  }
+
+  /**
    * Обновляет статус звонка
    * 
    * @param callId - ID звонка

@@ -124,6 +124,8 @@ class _UserListScreenState extends State<UserListScreen> {
               remoteUserId: user.id,
               remoteUsername: user.username,
               callType: CallType.voice, // ИСПРАВЛЕНО
+              currentUserId: widget.currentUserId,
+              currentUsername: widget.currentUsername,
             ),
           ),
         );

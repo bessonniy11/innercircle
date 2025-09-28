@@ -5,9 +5,9 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../socket/call_socket_client.dart';
 import '../api/api_client.dart';
-import '../../features/call/presentation/screens/call_screen.dart'; // НОВЫЙ ИМПОРТ
 import '../../main.dart'; // НОВЫЙ ИМПОРТ для navigatorKey
 import './auth_service.dart'; // ИСПРАВЛЕННЫЙ ИМПОРТ
+import './call_kit_service.dart'; // НОВЫЙ ИМПОРТ
 import '../../features/call/domain/models/call_model.dart'; // ВОТ ЧТО НУЖНО!
 import '../../features/call/presentation/screens/incoming_call_screen.dart'; // НОВЫЙ ИМПОРТ
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart'; // <-- НАШ НОВЫЙ ИМПОРТ
@@ -26,6 +26,7 @@ class WebRTCService extends ChangeNotifier {
   final CallSocketClient _callSocketClient;
   final ApiClient _apiClient;
   final AuthService _authService; // НОВЫЙ ПОЛЕ
+  final CallKitService _callKitService; // НОВОЕ ПОЛЕ
   
   // WebRTC объекты
   RTCPeerConnection? _peerConnection;
@@ -39,8 +40,12 @@ class WebRTCService extends ChangeNotifier {
   String? _remoteUserId;
   String? _remoteUsername; // Добавляем имя удаленного пользователя
   
+  // НОВЫЕ NOTIFIERS ДЛЯ UI
+  final ValueNotifier<Duration> callDurationNotifier = ValueNotifier(Duration.zero);
+  final ValueNotifier<RTCPeerConnectionState?> connectionStateNotifier = ValueNotifier(null);
+  
   // Таймеры
-  Timer? _callTimer;
+  Timer? _durationTimer;
   Timer? _iceGatheringTimer;
   
   // Очередь ICE кандидатов для добавления после установки remote description
@@ -54,6 +59,9 @@ class WebRTCService extends ChangeNotifier {
 
   // Флаг для предотвращения многократного сброса состояния
   bool _isResetting = false;
+
+  // НОВЫЙ ФЛАГ: Показывает, что пользователь нажал кнопку "Принять"
+  bool _isCallAcceptedByUser = false;
   
   // Конфигурация WebRTC (по умолчанию)
   Map<String, dynamic> _rtcConfiguration = {
@@ -65,7 +73,7 @@ class WebRTCService extends ChangeNotifier {
     'iceCandidatePoolSize': 10,
   };
 
-  WebRTCService(this._callSocketClient, this._apiClient, this._authService) { // ОБНОВЛЕННЫЙ КОНСТРУКТОР
+  WebRTCService(this._callSocketClient, this._apiClient, this._authService, this._callKitService) { // ОБНОВЛЕННЫЙ КОНСТРУКТОР
     _callSocketClient.addListener(_onSocketConnectionChange);
     _onSocketConnectionChange(); // Проверяем состояние сразу
     _loadWebRTCConfig();
@@ -210,16 +218,20 @@ class WebRTCService extends ChangeNotifier {
 
   // Принятие входящего звонка
   Future<bool> acceptCall() async {
-    if (_callState != CallState.incoming || _peerConnection == null) {
+    if (_callState != CallState.incoming) { // Упрощаем проверку
       debugPrint(
-          '⚠️ Попытка принять звонок в неверном состоянии: $_callState или без peer connection');
+          '⚠️ Попытка принять звонок в неверном состоянии: $_callState');
       return false;
     }
 
     // Останавливаем рингтон при принятии
-    FlutterRingtonePlayer().stop();
+    if (!kIsWeb) {
+      FlutterRingtonePlayer().stop();
+    }
 
     try {
+      _isCallAcceptedByUser = true; // Устанавливаем флаг, что пользователь принял звонок
+
       // НОВОЕ: Отправляем событие о принятии звонка НА СЕРВЕР
       if (_currentCallId != null) {
         _callSocketClient.emit('accept_call', {
@@ -240,25 +252,18 @@ class WebRTCService extends ChangeNotifier {
       await _createLocalStream();
 
       // Добавление локального потока
-      if (_localStream != null) {
+      if (_localStream != null && _peerConnection != null) {
         for (final track in _localStream!.getTracks()) {
           _peerConnection!.addTrack(track, _localStream!);
         }
       }
 
-      // Создание и отправка SDP answer
-      final answer = await _peerConnection!.createAnswer();
-      await _peerConnection!.setLocalDescription(answer);
-
-      // Отправка SDP answer через сокет
-      _callSocketClient.emit('sdp_answer', {
-        'callId': _currentCallId,
-        'sdp': answer.toMap(),
-        'callerId': _remoteUserId, // ВАЖНО: Указываем, кому адресован ответ
-      });
-      debugPrint('✅ SDP Answer отправлен на сервер');
-
-      _setCallState(CallState.connected);
+      // НОВОЕ: Если Offer уже получен, немедленно создаем Answer
+      if (_peerConnection?.signalingState == RTCSignalingState.RTCSignalingStateHaveRemoteOffer) {
+        await _createAndSendAnswer();
+      }
+      
+      // Не меняем состояние на connected здесь, это произойдет при установке соединения
       return true;
     } catch (e) {
       debugPrint('🚨 Ошибка при принятии звонка: $e');
@@ -273,7 +278,9 @@ class WebRTCService extends ChangeNotifier {
     debugPrint('🚫 Отклонение звонка ID: $_currentCallId');
 
     // Останавливаем рингтон при отклонении
-    FlutterRingtonePlayer().stop();
+    if (!kIsWeb) {
+      FlutterRingtonePlayer().stop();
+    }
 
     if (_currentCallId != null) {
       _callSocketClient.emit('reject_call', {
@@ -397,20 +404,25 @@ class WebRTCService extends ChangeNotifier {
       
       // Настройка обработчиков событий
       _peerConnection!.onIceCandidate = (candidate) {
-        if (candidate != null) {
-          
-          // ИСПРАВЛЕНИЕ: Буферизируем кандидаты, если callId еще не получен
-          if (_currentCallId == null) {
-            _outgoingIceCandidatesBuffer.add(candidate);
-          } else {
-            _sendIceCandidate(candidate);
-          }
+        // Кандидат может быть null, когда сбор завершен.
+        if (candidate == null) {
+          return;
+        }
+
+        // ИСПРАВЛЕНИЕ: Буферизируем кандидаты, если callId еще не получен
+        if (_currentCallId == null) {
+          _outgoingIceCandidatesBuffer.add(candidate);
+        } else {
+          _sendIceCandidate(candidate);
         }
       };
 
       _peerConnection!.onConnectionState = (state) {
+        debugPrint('🔌 [WebRTC] Connection State Changed: $state');
+        connectionStateNotifier.value = state; // ОБНОВЛЯЕМ NOTIFIER
         if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
-          // Соединение установлено
+          _setCallState(CallState.connected);
+          _startDurationTimer(); // Начинаем отсчет длительности
         }
       };
 
@@ -446,19 +458,80 @@ class WebRTCService extends ChangeNotifier {
     }
   }
 
+  /// НОВЫЙ МЕТОД: Готовит сервис к принятию звонка, инициированного извне (например, CallKit).
+  Future<void> prepareForAcceptedCall(String callId, String remoteUserId, String remoteUsername) async {
+    if (_callState != CallState.idle) {
+      debugPrint('📞 [WebRTC] Попытка подготовиться к звонку, когда состояние не idle: $_callState');
+      return;
+    }
+    debugPrint('📞 [WebRTC] Подготовка к принятию звонка $callId от $remoteUsername');
+
+    _currentCallId = callId;
+    _remoteUserId = remoteUserId;
+    _remoteUsername = remoteUsername;
+    _callType = CallType.voice; // TODO: handle video calls from callkit payload
+
+    // Сразу создаем PeerConnection, чтобы быть готовыми к SDP
+    await _createPeerConnection();
+    
+    // ИСПРАВЛЕНИЕ: Проверяем наличие буферизованного оффера СРАЗУ ПОСЛЕ создания PeerConnection
+    final bufferedOffer = _bufferedSdpOffer;
+    if (bufferedOffer != null && bufferedOffer['callId'] == _currentCallId) {
+      debugPrint('⚡️ [Prepare] Обработка буферизованного SDP offer...');
+      await processSdpOffer(bufferedOffer);
+      _bufferedSdpOffer = null; // Очищаем буфер после обработки
+    }
+    
+    // Устанавливаем состояние, чтобы acceptCall мог сработать
+    _setCallState(CallState.incoming);
+  }
+
   // Обработка входящего звонка
   void _handleIncomingCall(dynamic data) async {
     debugPrint('📞 [WS] Получен входящий звонок: $data');
+    final newCallId = data['callId'];
 
-    // НОВОЕ: Проверяем, не активен ли уже звонок через CallKit
-    var calls = await FlutterCallkitIncoming.activeCalls();
-    if (calls.isNotEmpty) {
-      debugPrint('📞 [WS] Звонок уже обрабатывается CallKit. Игнорируем событие WebSocket.');
+    if (newCallId == null) {
+      debugPrint('🚨 [WS] Входящий звонок без callId. Игнорируем.');
       return;
     }
 
+    // НОВОЕ: Проверяем, не активен ли уже звонок через CallKit
+    if (!kIsWeb) {
+      try {
+        var activeCalls = await FlutterCallkitIncoming.activeCalls();
+        
+        // 1. "Хирургическая" очистка: завершаем все звонки, которые НЕ соответствуют новому.
+        for (var call in activeCalls) {
+          final activeCallData = call as Map<dynamic, dynamic>;
+          final extra = activeCallData['extra'] as Map<dynamic, dynamic>? ?? {};
+          final activeCallId = extra['callId'] as String?;
+
+          if (activeCallId != newCallId) {
+            final callKitIdToTerminate = activeCallData['id'] as String?;
+            if (callKitIdToTerminate != null) {
+              debugPrint('👻 [WS] Найден "призрачный" звонок (ID: $activeCallId). Завершаем его (CallKit ID: $callKitIdToTerminate).');
+              await FlutterCallkitIncoming.endCall(callKitIdToTerminate);
+            }
+          }
+        }
+
+        // 2. После очистки, получаем актуальный список и проверяем, не дубликат ли это.
+        activeCalls = await FlutterCallkitIncoming.activeCalls();
+        if (activeCalls.any((call) {
+            final callData = call as Map<dynamic, dynamic>;
+            final extra = callData['extra'] as Map<dynamic, dynamic>? ?? {};
+            return (extra['callId'] as String?) == newCallId;
+        })) {
+          debugPrint('📞 [WS] Этот звонок (ID: $newCallId) уже отображается через CallKit. Игнорируем дублирующее событие WebSocket.');
+          return;
+        }
+      } catch (e) {
+        debugPrint('🚨 [WS] Ошибка при проверке активных звонков CallKit: $e');
+      }
+    }
+
     try {
-      final callId = data['callId'];
       final remoteUserId = data['remoteUserId'];
       final callType = data['callType'];
       final remoteUsername = data['callerName'] ?? 'Unknown';
@@ -471,12 +544,12 @@ class WebRTCService extends ChangeNotifier {
       }
       
       // Запускаем рингтон
-      FlutterRingtonePlayer().playRingtone();
+      if (!kIsWeb) {
+        FlutterRingtonePlayer().playRingtone();
+      }
 
       // ИСПРАВЛЕНИЕ: Устанавливаем callId и remoteUserId для входящего звонка
-      if (callId != null) {
-        _currentCallId = callId;
-      }
+      _currentCallId = newCallId;
       
       if (remoteUserId != null) {
         _remoteUserId = remoteUserId;
@@ -495,25 +568,27 @@ class WebRTCService extends ChangeNotifier {
       await _createPeerConnection();
 
       // После создания PC, проверяем наличие буферизованного оффера
-      if (_bufferedSdpOffer != null &&
-          _bufferedSdpOffer!['callId'] == _currentCallId) {
+      final bufferedOffer = _bufferedSdpOffer;
+      if (bufferedOffer != null && bufferedOffer['callId'] == _currentCallId) {
         debugPrint('⚡️ Обработка буферизованного SDP offer...');
-        await _processSdpOffer(_bufferedSdpOffer!);
+        await processSdpOffer(bufferedOffer);
         _bufferedSdpOffer = null; // Очищаем буфер после обработки
       }
 
       final context = navigatorKey.currentContext;
       if (context != null) {
         final currentUserId = await _authService.getUserId();
-        if (currentUserId == null) {
+        final currentUsername = await _authService.getUsername(); // НОВОЕ
+
+        if (currentUserId == null || currentUsername == null) {
           debugPrint(
-              '❌ [UI] Не удалось получить currentUserId, навигация отменена.');
+              '❌ [UI] Не удалось получить данные пользователя, навигация отменена.');
           return;
         }
 
         // СОЗДАЕМ ЭКЗЕМПЛЯР CallModel ИЗ СЫРЫХ ДАННЫХ
         final callModel = CallModel(
-          id: data['callId'],
+          id: newCallId,
           callerId: data['remoteUserId'],
           callerUsername: data['callerName'],
           receiverId: currentUserId, // Мы - получатель
@@ -531,6 +606,8 @@ class WebRTCService extends ChangeNotifier {
               remoteUserId: callModel.callerId,
               callType: callModel.type,
               remoteUsername: callModel.callerUsername ?? 'Unknown',
+              currentUserId: currentUserId, // ИСПРАВЛЕНО
+              currentUsername: currentUsername, // ИСПРАВЛЕНО
             ),
           ),
         );
@@ -551,7 +628,7 @@ class WebRTCService extends ChangeNotifier {
 
       if (_currentCallId == callId) {
         _setCallState(CallState.connected);
-        _startCallTimer();
+        _startDurationTimer(); // ИЗМЕНЕНО
       }
     } catch (e) {
       debugPrint('🚨 Ошибка в _handleCallAccepted: $e');
@@ -586,7 +663,9 @@ class WebRTCService extends ChangeNotifier {
       
       if (shouldEndCall) {
         // Останавливаем рингтон, если звонок был завершен удаленно
-        FlutterRingtonePlayer().stop();
+        if (!kIsWeb) {
+          FlutterRingtonePlayer().stop();
+        }
         debugPrint('🔚 Звонок был завершен удаленно.');
         await _resetCall();
       }
@@ -606,20 +685,49 @@ class WebRTCService extends ChangeNotifier {
       return;
     }
 
-    await _processSdpOffer(data);
+    await processSdpOffer(data);
+  }
+
+  /// НОВЫЙ МЕТОД: Добавляет сохраненные на сервере ICE кандидаты.
+  Future<void> addStoredIceCandidates(List<dynamic> candidates) async {
+    if (_peerConnection == null) {
+      debugPrint('⚠️ [WebRTC] Попытка добавить ICE кандидаты, но PeerConnection еще не создан.');
+      return;
+    }
+    
+    for (var candidateData in candidates) {
+      try {
+        if (candidateData is Map) {
+          final candidate = RTCIceCandidate(
+            candidateData['candidate'],
+            candidateData['sdpMid'],
+            candidateData['sdpMLineIndex'],
+          );
+          
+          // Добавляем в ту же очередь, что и кандидаты из сокета
+          if (_peerConnection?.getRemoteDescription() != null) {
+            await _peerConnection!.addCandidate(candidate);
+          } else {
+            _pendingIceCandidates.add(candidate);
+          }
+        }
+      } catch (e) {
+        debugPrint('🚨 [WebRTC] Ошибка при добавлении сохраненного ICE кандидата: $e');
+      }
+    }
   }
 
   // НОВЫЙ приватный метод для фактической обработки SDP
-  Future<void> _processSdpOffer(dynamic data) async {
+  Future<void> processSdpOffer(dynamic data) async {
     try {
       final sdpData = data['sdp'];
-      if (sdpData == null) {
-        debugPrint('🚨 SDP data is null in offer!');
+      if (sdpData is! Map) {
+        debugPrint('🚨 SDP data is not a Map!');
         return;
       }
 
-      final sdpString = sdpData['sdp']?.toString();
-      final sdpType = sdpData['type']?.toString();
+      final sdpString = sdpData['sdp'] as String?;
+      final sdpType = sdpData['type'] as String?;
 
       if (sdpString == null || sdpType == null) {
         debugPrint('🚨 SDP string or type is null in offer!');
@@ -646,9 +754,29 @@ class WebRTCService extends ChangeNotifier {
           }
           _pendingIceCandidates.clear();
         }
+
+        // НОВОЕ: Если пользователь уже нажал "Принять", создаем Answer
+        if (_isCallAcceptedByUser) {
+          await _createAndSendAnswer();
+        }
       }
     } catch (e) {
       debugPrint('🚨 Ошибка при обработке SDP Offer: $e');
+    }
+  }
+
+  /// НОВЫЙ МЕТОД: Создает и отправляет SDP Answer
+  Future<void> _createAndSendAnswer() async {
+    if (_peerConnection?.signalingState == RTCSignalingState.RTCSignalingStateHaveRemoteOffer) {
+      final answer = await _peerConnection!.createAnswer();
+      await _peerConnection!.setLocalDescription(answer);
+
+      _callSocketClient.emit('sdp_answer', {
+        'callId': _currentCallId,
+        'sdp': answer.toMap(),
+        'callerId': _remoteUserId,
+      });
+      debugPrint('✅ SDP Answer отправлен на сервер');
     }
   }
 
@@ -685,15 +813,24 @@ class WebRTCService extends ChangeNotifier {
 
   // Обработка ICE кандидата
   void _handleIceCandidate(dynamic data) async {
-    if (data['candidate'] == null || _peerConnection == null) {
+    if (_peerConnection == null || data is! Map) {
       return;
     }
 
     try {
+      final candidateData = data['candidate'];
+      if (candidateData is! Map) return;
+
+      final candidateString = candidateData['candidate'] as String?;
+      final sdpMid = candidateData['sdpMid'] as String?;
+      final sdpMLineIndex = candidateData['sdpMLineIndex'] as int?;
+
+      if(candidateString == null || sdpMid == null || sdpMLineIndex == null) return;
+
       final candidate = RTCIceCandidate(
-        data['candidate']['candidate'],
-        data['candidate']['sdpMid'],
-        data['candidate']['sdpMLineIndex'],
+        candidateString,
+        sdpMid,
+        sdpMLineIndex,
       );
 
       // Проверяем, установлен ли remote description
@@ -741,17 +878,18 @@ class WebRTCService extends ChangeNotifier {
     }
   }
 
-  // Запуск таймера звонка
-  void _startCallTimer() {
-    _callTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      // Логика таймера звонка
+  /// НОВЫЙ МЕТОД: Запускает таймер длительности звонка
+  void _startDurationTimer() {
+    _stopDurationTimer(); // Останавливаем предыдущий таймер, если он был
+    _durationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      callDurationNotifier.value += const Duration(seconds: 1);
     });
   }
 
-  // Остановка таймера звонка
-  void _stopCallTimer() {
-    _callTimer?.cancel();
-    _callTimer = null;
+  /// НОВЫЙ МЕТОД: Останавливает таймер длительности звонка
+  void _stopDurationTimer() {
+    _durationTimer?.cancel();
+    _durationTimer = null;
   }
 
   // Сброс состояния звонка
@@ -763,7 +901,9 @@ class WebRTCService extends ChangeNotifier {
     _isResetting = true;
     
     try {
-      
+      // НОВОЕ: Завершаем нативный UI звонка
+      await _callKitService.endAllCalls();
+
       // ИСПРАВЛЕНИЕ: Сначала обнуляем ID, чтобы предотвратить гонку состояний
       _currentCallId = null;
       _remoteUserId = null;
@@ -771,14 +911,18 @@ class WebRTCService extends ChangeNotifier {
       _pendingIceCandidates.clear();
       _outgoingIceCandidatesBuffer.clear();
       _bufferedSdpOffer = null; // Очищаем буфер SDP
+      _isCallAcceptedByUser = false; // Сбрасываем флаг
       
       // Устанавливаем состояние 'ended', чтобы UI мог среагировать до полного сброса
       _setCallState(CallState.ended);
       
       // Останавливаем таймеры
-      _stopCallTimer();
+      _stopDurationTimer(); // ОСТАНАВЛИВАЕМ ТАЙМЕР ДЛИТЕЛЬНОСТИ
       _iceGatheringTimer?.cancel();
       
+      // ОБНОВЛЯЕМ NOTIFIERS
+      callDurationNotifier.value = Duration.zero;
+      connectionStateNotifier.value = null;
       
 
       // Принудительно закрываем peer connection

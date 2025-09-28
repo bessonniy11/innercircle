@@ -4,6 +4,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'package:provider/provider.dart';
 import 'package:proximity_sensor/proximity_sensor.dart';
+import 'package:zvonilka/features/chat/presentation/screens/chat_list_screen.dart';
 import '../../../../core/services/webrtc_service.dart' as webrtc;
 import '../../domain/models/call_model.dart'; // ИМПОРТИРУЕМ ПРАВИЛЬНУЮ МОДЕЛЬ
 
@@ -18,12 +19,17 @@ class ActiveCallScreen extends StatefulWidget {
   final String remoteUserId;
   final String remoteUsername;
   final CallType callType; // ИСПРАВЛЯЕМ ТИП
+  // НОВЫЕ ПОЛЯ ДЛЯ НАВИГАЦИИ
+  final String currentUserId;
+  final String currentUsername;
 
   const ActiveCallScreen({
     super.key,
     required this.remoteUserId,
     required this.remoteUsername,
     required this.callType,
+    required this.currentUserId,
+    required this.currentUsername,
   });
 
   @override
@@ -168,21 +174,19 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
           
           _durationTimer?.cancel();
           
-          // Используем addPostFrameCallback, чтобы избежать "click-through".
-          // Это гарантирует, что Navigator.pop() будет вызван после завершения текущего кадра
-          // и обработки всех событий ввода.
           if (mounted) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
-                try {
-                  Navigator.of(context).pop();
-                } catch (e) {
-                  try {
-                    Navigator.of(context).popUntil((route) => route.isFirst);
-                  } catch (e2) {
-                    // Игнорируем
-                  }
-                }
+                // ИЗМЕНЕНИЕ: Вместо pop, переходим на главный экран
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(
+                    builder: (context) => ChatListScreen(
+                      currentUserId: widget.currentUserId,
+                      currentUsername: widget.currentUsername,
+                    ),
+                  ),
+                  (route) => false, // Удаляем все предыдущие экраны
+                );
               }
             });
           }

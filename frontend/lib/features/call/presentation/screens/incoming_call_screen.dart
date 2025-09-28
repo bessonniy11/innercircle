@@ -10,6 +10,9 @@ class IncomingCallScreen extends StatefulWidget {
   final String remoteUserId;
   final CallType callType; // ИСПРАВЛЯЕМ ТИП
   final String remoteUsername;
+  // НОВЫЕ ПОЛЯ
+  final String currentUserId;
+  final String currentUsername;
 
   const IncomingCallScreen({
     super.key,
@@ -17,6 +20,8 @@ class IncomingCallScreen extends StatefulWidget {
     required this.remoteUserId,
     this.callType = CallType.voice, // ИСПРАВЛЯЕМ ЗНАЧЕНИЕ ПО УМОЛЧАНИЮ
     required this.remoteUsername,
+    required this.currentUserId,
+    required this.currentUsername,
   });
 
   @override
@@ -54,6 +59,8 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
             remoteUserId: _webrtcService.remoteUserId ?? '',
             remoteUsername: widget.remoteUsername,
             callType: widget.callType,
+            currentUserId: widget.currentUserId,
+            currentUsername: widget.currentUsername,
           ),
         ),
       );

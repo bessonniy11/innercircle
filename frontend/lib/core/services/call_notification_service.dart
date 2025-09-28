@@ -11,6 +11,8 @@ class CallNotificationService {
 
   BuildContext? _context;
   final Map<String, BuildContext> _contexts = {};
+  String? _currentUserId;
+  String? _currentUsername;
 
   /// Установка контекста для навигации
   void setContext(BuildContext context) {
@@ -21,6 +23,13 @@ class CallNotificationService {
   void addContext(String screenId, BuildContext context) {
     _contexts[screenId] = context;
     debugPrint('🔔 CallNotificationService: Добавлен контекст для экрана: $screenId');
+  }
+
+  /// НОВЫЙ МЕТОД: Установка данных текущего пользователя
+  void setCurrentUser({required String userId, required String username}) {
+    _currentUserId = userId;
+    _currentUsername = username;
+    debugPrint('🔔 CallNotificationService: Установлен текущий пользователь: $username ($userId)');
   }
 
   /// Удалить контекст для конкретного экрана
@@ -41,8 +50,8 @@ class CallNotificationService {
     
     debugPrint('🔔 CallNotificationService: callId: $callId, remoteUserId: $remoteUserId, callType: $callType, remoteUsername: $remoteUsername');
 
-    if (callId == null || remoteUserId == null || callType == null) {
-      debugPrint('🔥 CallNotificationService: Неполные данные звонка: $callData');
+    if (callId == null || remoteUserId == null || callType == null || _currentUserId == null || _currentUsername == null) {
+      debugPrint('🔥 CallNotificationService: Неполные данные для звонка: callId=$callId, remoteUserId=$remoteUserId, callType=$callType, currentUserId=$_currentUserId, currentUsername=$_currentUsername');
       return;
     }
 
@@ -72,6 +81,8 @@ class CallNotificationService {
             remoteUserId: remoteUserId,
             callType: type, // ПЕРЕДАЕМ ПРАВИЛЬНЫЙ ТИП
             remoteUsername: remoteUsername ?? 'Unknown User',
+            currentUserId: _currentUserId!,
+            currentUsername: _currentUsername!,
           ),
         ),
       );

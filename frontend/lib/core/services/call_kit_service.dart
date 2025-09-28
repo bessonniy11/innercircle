@@ -8,13 +8,22 @@ import 'package:zvonilka/core/services/webrtc_service.dart';
 
 /// Этот сервис отвечает за прослушивание и обработку событий от нативного UI звонков (CallKit/ConnectionService).
 class CallKitService {
-  final BuildContext _context;
+  // Убираем зависимость от BuildContext
+  // final BuildContext _context;
 
-  CallKitService(this._context) {
-    _initialize();
+  // Храним ссылку на ApiClient, полученную при инициализации
+  ApiClient? _apiClient;
+  WebRTCService? _webrtcService;
+
+  CallKitService() {
+    // Инициализация теперь будет вызываться извне, после того как сервисы будут доступны
   }
-
-  void _initialize() {
+  
+  void initialize(BuildContext context) {
+    // Сохраняем ссылки на сервисы
+    _apiClient = Provider.of<ApiClient>(context, listen: false);
+    _webrtcService = Provider.of<WebRTCService>(context, listen: false,);
+    
     // Эта логика предназначена только для мобильных платформ
     if (kIsWeb) {
       return;
@@ -35,8 +44,7 @@ class CallKitService {
       switch (event.event) {
         case Event.actionCallAccept:
           debugPrint('📞 [CallKitService] Пользователь принял звонок в открытом приложении.');
-          final webrtcService = Provider.of<WebRTCService>(_context, listen: false);
-          webrtcService.acceptCall();
+          _webrtcService?.acceptCall();
           break;
         case Event.actionCallDecline:
           debugPrint('📞 [CallKitService] Пользователь отклонил звонок в открытом приложении.');
@@ -45,6 +53,10 @@ class CallKitService {
         case Event.actionCallTimeout:
           debugPrint('📞 [CallKitService] Звонок в открытом приложении не был отвечен (тайм-аут).');
           _handleCallDecline(event.body);
+          break;
+        case Event.actionCallEnded:
+          debugPrint('📞 [CallKitService] Пользователь завершил звонок из нативного UI.');
+          _webrtcService?.endCall();
           break;
         default:
           break;
@@ -57,29 +69,52 @@ class CallKitService {
     try {
       final String callKitId = body['id'];
       final String callId = body['extra']['callId'];
-      final apiClient = Provider.of<ApiClient>(_context, listen: false);
+      
+      if (_apiClient == null) {
+        debugPrint('🚨 [CallKitService] ApiClient не инициализирован.');
+        return;
+      }
 
       debugPrint('📞 [CallKitService] Отклонение звонка callId: $callId, callKitId: $callKitId');
 
       // 1. Отправляем HTTP запрос на бэкенд для надежности
       // Используем публичный эндпоинт для унификации логики
-      await apiClient.post('/calls/public/respond', data: {
+      await _apiClient!.post('/calls/public/respond', data: {
         'callId': callId,
         'action': 'reject',
       });
       debugPrint('📞 [CallKitService] HTTP запрос на отклонение отправлен.');
 
       // 2. Завершаем сессию CallKit, чтобы убрать UI
-      await FlutterCallkitIncoming.endCall(callKitId);
+      await endCall(callKitId);
       debugPrint('📞 [CallKitService] UI CallKit завершен.');
 
     } catch (e) {
       debugPrint('🚨 [CallKitService] Ошибка при отклонении звонка: $e');
       // В случае ошибки все равно пытаемся завершить UI
-      try {
-        final String callKitId = body['id'];
-        await FlutterCallkitIncoming.endCall(callKitId);
-      } catch (_) {}
+      await endCall(body['id']);
+    }
+  }
+  
+  /// Завершает конкретный звонок в нативном UI.
+  Future<void> endCall(String callKitId) async {
+    if (kIsWeb) return;
+    try {
+      await FlutterCallkitIncoming.endCall(callKitId);
+      debugPrint('📞 [CallKitService] UI CallKit для звонка $callKitId завершен.');
+    } catch (e) {
+      debugPrint('🚨 [CallKitService] Ошибка при завершении UI CallKit для звонка $callKitId: $e');
+    }
+  }
+
+  /// Завершает ВСЕ активные звонки в нативном UI.
+  Future<void> endAllCalls() async {
+    if (kIsWeb) return;
+    try {
+      await FlutterCallkitIncoming.endAllCalls();
+      debugPrint('📞 [CallKitService] Все UI CallKit завершены.');
+    } catch (e) {
+      debugPrint('🚨 [CallKitService] Ошибка при завершении всех UI CallKit: $e');
     }
   }
 }

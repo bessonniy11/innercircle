@@ -39,7 +39,7 @@ export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     constructor(
         private readonly jwtService: JwtService,
-    // УДАЛЕНО: callService больше не нужен здесь
+    private readonly callService: CallService,
   ) {}
 
   // ===========================================================================
@@ -166,6 +166,19 @@ export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
   ) {
         const { callId, sdp, receiverId } = data;
+
+    // НОВОЕ: Сохраняем SDP Offer в базе данных
+    try {
+      await this.callService.saveSdpOffer(callId, sdp);
+      this.logger.log(`[offer] SDP Offer для звонка ${callId} сохранен в БД.`);
+    } catch (error) {
+      this.logger.error(
+        `[offer] Не удалось сохранить SDP Offer для звонка ${callId}: ${error.message}`,
+      );
+      // Мы не прерываем выполнение, а просто логируем ошибку. 
+      // Звонок может пройти, если получатель онлайн.
+    }
+
         const receiverSocket = this.userSockets.get(receiverId);
         if (receiverSocket) {
       this.logger.log(
@@ -218,7 +231,20 @@ export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
             candidate,
             from: client.data.user.id || client.data.user.sub,
         });
+    } else {
+      // НОВОЕ: Целевой пользователь оффлайн, сохраняем кандидат в БД
+      this.logger.warn(
+        `[ice_candidate] Целевой пользователь ${targetId} оффлайн. Сохраняем кандидат в БД для звонка ${callId}.`,
+      );
+      try {
+        const senderId = client.data.user.id || client.data.user.sub;
+        await this.callService.saveIceCandidate(callId, senderId, candidate);
+      } catch (error) {
+        this.logger.error(
+          `[ice_candidate] Не удалось сохранить кандидат для звонка ${callId}: ${error.message}`,
+        );
       }
+    }
     }
 
   @OnEvent('call.rejected')
