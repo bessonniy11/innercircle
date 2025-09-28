@@ -13,12 +13,80 @@ import 'package:zvonilka/core/services/webrtc_service.dart';
 import 'package:zvonilka/core/services/call_notification_service.dart';
 import 'package:zvonilka/core/services/push_notification_service.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:zvonilka/core/services/call_kit_service.dart'; // <-- ИМПОРТИРУЕМ НАШ НОВЫЙ СЕРВИС
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart'; // <-- НОВЫЙ ИМПОРТ
+import 'package:flutter_callkit_incoming/entities/entities.dart';      // <-- НОВЫЙ ИМПОРТ
+import 'package:dio/dio.dart';                                        // <-- НОВЫЙ ИМПОРТ
+import 'package:shared_preferences/shared_preferences.dart';           // <-- НОВЫЙ ИМПОРТ
 
 // НОВЫЙ КЛЮЧ НАВИГАТОРА
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+/// НОВЫЙ ГЛОБАЛЬНЫЙ ОБРАБОТЧИК ДЛЯ ФОНОВЫХ СОБЫТИЙ CALLKIT
+/// Эта функция должна быть на верхнем уровне, вне любого класса.
+@pragma('vm:entry-point')
+Future<void> _backgroundCallKitEventHandler(CallEvent? event) async { // ИЗМЕНЕНО НА CallEvent?
+  // Используем SharedPreferences для логирования в фоне
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString('background_handler_last_event_at', DateTime.now().toIso8601String());
+
+  if (event == null) {
+    await prefs.setString('background_handler_error', 'Received null event');
+    return;
+  }
+  
+  await prefs.setString('background_handler_event_type', event.event.toString());
+
+  debugPrint('📞 [BackgroundCallKit] Получено фоновое событие: ${event.event}');
+  
+  if (event.event == Event.actionCallDecline || event.event == Event.actionCallTimeout) {
+    try {
+      final String callId = event.body['extra']['callId'];
+      final String callKitId = event.body['id'];
+
+      await prefs.setString('background_handler_action', 'Attempting to reject callId: $callId');
+
+      debugPrint('📞 [BackgroundCallKit] Отклонение звонка callId: $callId');
+
+      // 1. Отправляем HTTP-запрос напрямую через Dio
+      // ЭКСПЕРИМЕНТ: Хардкодим URL, т.к. ApiConfig может не работать в фоне
+      final dio = Dio(BaseOptions(baseUrl: 'https://zvonilka.ibessonniy.ru'));
+      await dio.post('/calls/public/respond', data: {
+        'callId': callId,
+        'action': 'reject',
+      });
+      await prefs.setString('background_handler_action_result', 'HTTP request sent successfully');
+      debugPrint('📞 [BackgroundCallKit] HTTP-запрос на отклонение отправлен.');
+
+      // 2. Завершаем сессию CallKit, чтобы убрать UI
+      // Этот вызов также уберет и системное уведомление
+      await FlutterCallkitIncoming.endCall(callKitId);
+      await prefs.setString('background_handler_action_result', 'CallKit UI ended');
+      debugPrint('📞 [BackgroundCallKit] UI CallKit завершен.');
+
+    } catch (e) {
+      await prefs.setString('background_handler_error', 'Error during rejection: ${e.toString()}');
+      debugPrint('🚨 [BackgroundCallKit] Ошибка при отклонении звонка: $e');
+      // В случае ошибки все равно пытаемся завершить UI
+      try {
+        final String callKitId = event.body['id'];
+        await FlutterCallkitIncoming.endCall(callKitId);
+      } catch (_) {}
+    }
+  } else if (event.event == Event.actionCallAccept) {
+    await prefs.setString('background_handler_action', 'Call accepted event received (not implemented)');
+    // TODO: Добавить обработку принятия звонка из фона
+    // Это потребует навигации на экран звонка и установления WebRTC соединения
+    debugPrint('📞 [BackgroundCallKit] Принятие звонка из фона пока не реализовано.');
+  }
+}
+
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // РЕГИСТРИРУЕМ ФОНОВЫЙ ОБРАБОТЧИК
+  FlutterCallkitIncoming.onEvent.listen(_backgroundCallKitEventHandler);
 
   // Инициализируем Firebase с конфигурацией для текущей платформы
   try {
@@ -126,37 +194,49 @@ class MyApp extends StatelessWidget {
         Provider<CallNotificationService>(
           create: (_) => CallNotificationService(),
         ),
-      ],
-      child: MaterialApp(
-        navigatorKey: navigatorKey, // ИСПОЛЬЗУЕМ КЛЮЧ ЗДЕСЬ
-        title: 'Звонилка',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF4CAF50), // Зеленый цвет логотипа
-            brightness: Brightness.light,
-          ),
-          useMaterial3: true,
-          appBarTheme: const AppBarTheme(
-            backgroundColor: Color(0xFF4CAF50),
-            foregroundColor: Colors.white,
-            elevation: 2,
-          ),
-          floatingActionButtonTheme: const FloatingActionButtonThemeData(
-            backgroundColor: Color(0xFF4CAF50),
-            foregroundColor: Colors.white,
-          ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4CAF50),
-              foregroundColor: Colors.white,
-            ),
-          ),
+        // НАШ НОВЫЙ CallKitService
+        Provider<CallKitService>(
+          create: (context) => CallKitService(context),
         ),
-        home: const SplashScreen(),
-        builder: (context, child) {
-          // Оборачиваем все экраны в ResponsiveLayout для адаптивности
-          return ResponsiveLayout(
-            child: child!,
+      ],
+      child: Builder( // <-- ИСПОЛЬЗУЕМ BUILDER, ЧТОБЫ ПОЛУЧИТЬ КОНТЕКСТ
+        builder: (context) {
+          // Инициализируем CallKitService здесь, где у нас есть доступ к контексту
+          // Он будет создан один раз и начнет слушать события
+          Provider.of<CallKitService>(context, listen: false);
+
+          return MaterialApp(
+            navigatorKey: navigatorKey, // ИСПОЛЬЗУЕМ КЛЮЧ ЗДЕСЬ
+            title: 'Звонилка',
+            theme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: const Color(0xFF4CAF50), // Зеленый цвет логотипа
+                brightness: Brightness.light,
+              ),
+              useMaterial3: true,
+              appBarTheme: const AppBarTheme(
+                backgroundColor: Color(0xFF4CAF50),
+                foregroundColor: Colors.white,
+                elevation: 2,
+              ),
+              floatingActionButtonTheme: const FloatingActionButtonThemeData(
+                backgroundColor: Color(0xFF4CAF50),
+                foregroundColor: Colors.white,
+              ),
+              elevatedButtonTheme: ElevatedButtonThemeData(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4CAF50),
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ),
+            home: const SplashScreen(),
+            builder: (context, child) {
+              // Оборачиваем все экраны в ResponsiveLayout для адаптивности
+              return ResponsiveLayout(
+                child: child!,
+              );
+            },
           );
         },
       ),

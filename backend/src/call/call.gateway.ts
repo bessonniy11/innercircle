@@ -220,4 +220,29 @@ export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
         });
       }
     }
+
+  @OnEvent('call.rejected')
+  handleCallRejectedEvent(call: Call) {
+    const callerSocket = this.userSockets.get(call.callerId);
+    if (callerSocket) {
+      this.logger.log(`[rejected_event] Отправка 'call_rejected' звонящему ${call.callerId} для звонка ${call.id}`);
+      callerSocket.emit('call_rejected', { callId: call.id, reason: 'rejected_by_user' });
+    } else {
+      this.logger.warn(`[rejected_event] Звонящий ${call.callerId} не в сети, событие не отправлено.`);
+    }
   }
+
+  @OnEvent('call.accepted')
+  handleCallAcceptedEvent(call: Call) {
+    const callerSocket = this.userSockets.get(call.callerId);
+    if (callerSocket) {
+      this.logger.log(`[accepted_event] Отправка 'call_accepted' звонящему ${call.callerId} для звонка ${call.id}`);
+      callerSocket.emit('call_accepted', { 
+        callId: call.id,
+        receiverId: call.receiverId,
+      });
+    } else {
+      this.logger.warn(`[accepted_event] Звонящий ${call.callerId} не в сети, событие не отправлено.`);
+    }
+  }
+}

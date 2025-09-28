@@ -37,7 +37,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     appName: 'Звонилка',
     handle: 'Входящий звонок',
     type: 0, // 0 for voice call, 1 for video call
-    duration: 30000, // Таймаут в миллисекундах (30 сек)
+    duration: 60000, // Таймаут в миллисекундах (60 сек)
     textAccept: 'Принять',
     textDecline: 'Отклонить',
     missedCallNotification: NotificationParams(

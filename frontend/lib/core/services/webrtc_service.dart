@@ -11,6 +11,7 @@ import './auth_service.dart'; // ИСПРАВЛЕННЫЙ ИМПОРТ
 import '../../features/call/domain/models/call_model.dart'; // ВОТ ЧТО НУЖНО!
 import '../../features/call/presentation/screens/incoming_call_screen.dart'; // НОВЫЙ ИМПОРТ
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart'; // <-- НАШ НОВЫЙ ИМПОРТ
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart'; // <-- НАШ НОВЫЙ ИМПОРТ
 
 enum CallState {
   idle,
@@ -448,6 +449,14 @@ class WebRTCService extends ChangeNotifier {
   // Обработка входящего звонка
   void _handleIncomingCall(dynamic data) async {
     debugPrint('📞 [WS] Получен входящий звонок: $data');
+
+    // НОВОЕ: Проверяем, не активен ли уже звонок через CallKit
+    var calls = await FlutterCallkitIncoming.activeCalls();
+    if (calls.isNotEmpty) {
+      debugPrint('📞 [WS] Звонок уже обрабатывается CallKit. Игнорируем событие WebSocket.');
+      return;
+    }
+
     try {
       final callId = data['callId'];
       final remoteUserId = data['remoteUserId'];

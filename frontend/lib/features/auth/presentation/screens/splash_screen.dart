@@ -8,6 +8,7 @@ import 'package:zvonilka/features/chat/presentation/screens/chat_list_screen.dar
 import 'package:zvonilka/core/widgets/app_logo.dart';
 import 'package:provider/provider.dart';
 import 'package:zvonilka/core/services/push_notification_service.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // <-- НОВЫЙ ИМПОРТ
 
 /// Экран загрузки для проверки состояния аутентификации
 class SplashScreen extends StatefulWidget {
@@ -27,6 +28,9 @@ class _SplashScreenState extends State<SplashScreen> {
 
   /// Проверка состояния аутентификации при запуске
   Future<void> _checkAuthStatus() async {
+    // Выводим фоновые логи для отладки
+    await _printBackgroundLogs();
+
     // Показываем splash screen минимум 1.5 секунды для лучшего UX
     await Future.delayed(const Duration(milliseconds: 1500));
     
@@ -84,6 +88,40 @@ class _SplashScreenState extends State<SplashScreen> {
         ),
       ),
     );
+  }
+
+  /// НОВЫЙ МЕТОД: Читает и выводит логи из SharedPreferences
+  Future<void> _printBackgroundLogs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastEventTime = prefs.getString('background_handler_last_event_at');
+      final eventType = prefs.getString('background_handler_event_type');
+      final action = prefs.getString('background_handler_action');
+      final result = prefs.getString('background_handler_action_result');
+      final error = prefs.getString('background_handler_error');
+
+      debugPrint('--- 🕵️  Background Handler Logs 🕵️ ---');
+      if (lastEventTime != null) {
+        debugPrint('Last Event At: $lastEventTime');
+        debugPrint('Event Type: $eventType');
+        debugPrint('Action: $action');
+        debugPrint('Result: $result');
+        debugPrint('Error: $error');
+
+        // Очищаем логи после прочтения, чтобы не видеть старые при следующем запуске
+        await prefs.remove('background_handler_last_event_at');
+        await prefs.remove('background_handler_event_type');
+        await prefs.remove('background_handler_action');
+        await prefs.remove('background_handler_action_result');
+        await prefs.remove('background_handler_error');
+      } else {
+        debugPrint('No background logs found.');
+      }
+      debugPrint('------------------------------------');
+
+    } catch (e) {
+      debugPrint('🚨 Error reading background logs: $e');
+    }
   }
 
   @override

@@ -23,8 +23,6 @@ import { Call, CallStatus, CallType } from './entities/call.entity';
  */
 @ApiTags('calls (Звонки)')
 @Controller('calls')
-@UseGuards(AuthGuard('jwt'))
-@ApiBearerAuth()
 export class CallController {
   constructor(private readonly callService: CallService) {}
 
@@ -47,6 +45,8 @@ export class CallController {
    * @author ИИ-Ассистент + Bessonniy
    */
   @Post('initiate')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Инициация звонка',
     description: 'Создает новый звонок от текущего пользователя к указанному целевому пользователю'
@@ -99,6 +99,8 @@ export class CallController {
    * @author ИИ-Ассистент + Bessonniy
    */
   @Post('respond')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Ответ на входящий звонок',
     description: 'Позволяет принять или отклонить входящий звонок'
@@ -137,6 +139,33 @@ export class CallController {
   }
 
   /**
+   * НОВЫЙ ПУБЛИЧНЫЙ Эндпоинт для ответа на звонок без авторизации
+   * Используется для CallKit/ConnectionService, когда приложение "убито"
+   */
+  @Post('public/respond')
+  @ApiOperation({
+    summary: 'Публичный ответ на звонок (для CallKit)',
+    description:
+      'Позволяет отклонить звонок без JWT токена. Только для действия "reject"!',
+  })
+  @ApiBody({
+    type: CallResponseDto,
+    description:
+      'Данные для ответа на звонок. Поле action должно быть "reject"',
+  })
+  @ApiResponse({ status: 200, description: 'Звонок успешно отклонен' })
+  @ApiResponse({
+    status: 400,
+    description: 'Некорректные данные или действие не "reject"',
+  })
+  @ApiResponse({ status: 404, description: 'Звонок не найден' })
+  async publicRespondToCall(
+    @Body() callResponseDto: CallResponseDto,
+  ): Promise<Call> {
+    return await this.callService.handlePublicCallResponse(callResponseDto);
+  }
+
+  /**
    * Завершение активного звонка
    * 
    * @param callId - ID звонка для завершения
@@ -151,6 +180,8 @@ export class CallController {
    * @author ИИ-Ассистент + Bessonniy
    */
   @Post(':callId/end')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Завершение звонка',
     description: 'Завершает активный звонок (только для участников звонка)'
@@ -206,6 +237,8 @@ export class CallController {
    * @author ИИ-Ассистент + Bessonniy
    */
   @Get('history')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'История звонков',
     description: 'Получает историю всех звонков текущего пользователя (входящие и исходящие)'
@@ -256,6 +289,8 @@ export class CallController {
    * @author ИИ-Ассистент + Bessonniy
    */
   @Get('active')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Активные звонки',
     description: 'Получает список активных (отвеченных) звонков текущего пользователя'
@@ -287,6 +322,8 @@ export class CallController {
    * @author ИИ-Ассистент + Bessonniy
    */
   @Get('webrtc-config')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'WebRTC конфигурация',
     description: 'Получает конфигурацию WebRTC с STUN серверами для клиентов'
@@ -328,6 +365,8 @@ export class CallController {
    * @author ИИ-Ассистент + Bessonniy
    */
   @Get(':callId')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Информация о звонке',
     description: 'Получает детальную информацию о конкретном звонке (только для участников)'
@@ -378,6 +417,8 @@ export class CallController {
    * @author ИИ-Ассистент + Bessonniy
    */
   @Delete(':callId')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Удаление звонка',
     description: 'Удаляет запись звонка из системы (только для администраторов)'

@@ -190,7 +190,7 @@ export class CallService {
     const updatedCall = await this.callRepository.save(call);
     
     // НОВОЕ: Эмитим событие об изменении статуса
-    this.eventEmitter.emit('call.status.changed', { call: updatedCall, status });
+    // this.eventEmitter.emit('call.status.changed', { call: updatedCall, status });
     
     return updatedCall;
   }
@@ -293,15 +293,76 @@ export class CallService {
 
     // Обновляем статус в зависимости от действия
     let newStatus: CallStatus;
+    let eventToEmit: string | null = null; // <-- Переменная для события
+
     if (action === 'accept') {
         newStatus = CallStatus.ANSWERED;
+        eventToEmit = 'call.accepted'; // <-- Событие для принятия
     } else if (action === 'reject') {
         newStatus = CallStatus.REJECTED;
+        eventToEmit = 'call.rejected'; // <-- Событие для отклонения
     } else {
         throw new BadRequestException('Неизвестное действие');
     }
     
-    return await this.updateCallStatus(callId, newStatus, userId);
+    const updatedCall = await this.updateCallStatus(callId, newStatus, userId);
+
+    // Явно эмитим событие после обновления статуса
+    if (eventToEmit) {
+      this.eventEmitter.emit(eventToEmit, updatedCall);
+    }
+
+    return updatedCall;
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Обрабатывает публичный ответ на звонок (отклонение)
+   */
+  async handlePublicCallResponse(
+    callResponseDto: CallResponseDto,
+  ): Promise<Call> {
+    const { callId, action } = callResponseDto;
+
+    // На публичном эндпоинте разрешаем только отклонение
+    if (action !== 'reject') {
+      throw new BadRequestException(
+        'Для данного эндпоинта доступно только действие "reject"',
+      );
+    }
+
+    const call = await this.callRepository.findOne({
+      where: { id: callId },
+      relations: ['caller', 'receiver'],
+    });
+
+    if (!call) {
+      throw new NotFoundException('Звонок не найден');
+    }
+
+    // Проверяем, что звонок все еще ожидает ответа, чтобы избежать повторной обработки
+    if (
+      ![CallStatus.RINGING, CallStatus.INITIATING].includes(call.status)
+    ) {
+      this.logger.warn(
+        `Попытка публичного отклонения уже обработанного звонка ${callId} со статусом ${call.status}. Действие проигнорировано.`,
+      );
+      return call;
+    }
+
+    // Для updateCallStatus нам нужен ID пользователя, который совершает действие.
+    // В данном случае это всегда получатель звонка.
+    const receiverId = call.receiverId;
+    const updatedCall = await this.updateCallStatus(
+      callId,
+      CallStatus.REJECTED,
+      receiverId,
+    );
+
+    // Эмитим событие, чтобы CallGateway уведомил звонящего
+    this.eventEmitter.emit('call.rejected', updatedCall);
+    this.logger.log(`Сгенерировано событие call.rejected для звонка ${callId}`);
+
+    return updatedCall;
   }
 
   /**
