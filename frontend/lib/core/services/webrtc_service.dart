@@ -10,6 +10,7 @@ import '../../main.dart'; // НОВЫЙ ИМПОРТ для navigatorKey
 import './auth_service.dart'; // ИСПРАВЛЕННЫЙ ИМПОРТ
 import '../../features/call/domain/models/call_model.dart'; // ВОТ ЧТО НУЖНО!
 import '../../features/call/presentation/screens/incoming_call_screen.dart'; // НОВЫЙ ИМПОРТ
+import 'package:flutter_ringtone_player/flutter_ringtone_player.dart'; // <-- НАШ НОВЫЙ ИМПОРТ
 
 enum CallState {
   idle,
@@ -214,6 +215,9 @@ class WebRTCService extends ChangeNotifier {
       return false;
     }
 
+    // Останавливаем рингтон при принятии
+    FlutterRingtonePlayer().stop();
+
     try {
       // НОВОЕ: Отправляем событие о принятии звонка НА СЕРВЕР
       if (_currentCallId != null) {
@@ -266,6 +270,10 @@ class WebRTCService extends ChangeNotifier {
   // Отклонение входящего звонка
   Future<void> rejectCall() async {
     debugPrint('🚫 Отклонение звонка ID: $_currentCallId');
+
+    // Останавливаем рингтон при отклонении
+    FlutterRingtonePlayer().stop();
+
     if (_currentCallId != null) {
       _callSocketClient.emit('reject_call', {
         'callId': _currentCallId,
@@ -453,6 +461,9 @@ class WebRTCService extends ChangeNotifier {
         return;
       }
       
+      // Запускаем рингтон
+      FlutterRingtonePlayer().playRingtone();
+
       // ИСПРАВЛЕНИЕ: Устанавливаем callId и remoteUserId для входящего звонка
       if (callId != null) {
         _currentCallId = callId;
@@ -565,6 +576,8 @@ class WebRTCService extends ChangeNotifier {
       }
       
       if (shouldEndCall) {
+        // Останавливаем рингтон, если звонок был завершен удаленно
+        FlutterRingtonePlayer().stop();
         debugPrint('🔚 Звонок был завершен удаленно.');
         await _resetCall();
       }
